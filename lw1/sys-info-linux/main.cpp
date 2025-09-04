@@ -1,0 +1,189 @@
+#include "MntentWrapper.h"
+
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <mntent.h>
+#include <pwd.h>
+#include <string>
+#include <sys/statvfs.h>
+#include <sys/sysinfo.h>
+#include <sys/utsname.h>
+#include <unistd.h>
+
+constexpr std::string NOT_AVAILABLE = "n/a";
+constexpr std::string OS_RELEASE_FILE = "/etc/os-release";
+constexpr auto MOUNTS_FILE = "/proc/mounts";
+constexpr std::string MEMINFO_FILE = "/proc/meminfo";
+constexpr auto READ_MODE = "r";
+constexpr std::string PRETTY_NAME = "PRETTY_NAME";
+constexpr int BYTE_PER_MB = 1024 * 1024;
+constexpr int BYTE_PER_GB = 1024 * 1024 * 1024;
+constexpr std::string SLASH_SEPARATOR = "/";
+constexpr std::string MB_FREE = "MB free";
+constexpr std::string MB_TOTAL = "MB total";
+constexpr std::string GB_FREE = "GB free";
+constexpr std::string GB_TOTAL = "GB total";
+constexpr std::string VMALLOC_TOTAL = "VmallocTotal";
+constexpr int SCALE = 65536;
+
+std::string GetOS()
+{
+	std::ifstream file(OS_RELEASE_FILE);
+	if (!file.is_open())
+	{
+		return NOT_AVAILABLE + ": не удалось открыть " + MEMINFO_FILE;
+	}
+	std::string line;
+	while (std::getline(file, line))
+	{
+		if (!line.starts_with(PRETTY_NAME))
+		{
+			continue;
+		}
+		std::string value = line.substr(line.find('=') + 1);
+		if (value.length() > 1 && value.front() == '"' && value.back() == '"')
+		{
+			return value.substr(1, value.length() - 2);
+		}
+		return value;
+	}
+	return NOT_AVAILABLE;
+}
+
+utsname GetUTSName()
+{
+	utsname buffer{};
+	if (uname(&buffer) != 0)
+	{
+		throw std::runtime_error("uname() завершился с ошибкой");
+	}
+	return buffer;
+}
+
+std::string GetUser()
+{
+	const passwd* pw = getpwuid(getuid());
+	if (pw == nullptr)
+	{
+		return NOT_AVAILABLE;
+	}
+	return pw->pw_name;
+}
+
+struct sysinfo GetSystemInfo()
+{
+	struct sysinfo info{};
+	if (sysinfo(&info) != 0)
+	{
+		throw std::runtime_error("sysinfo() завершился с ошибкой");
+	}
+
+	return info;
+}
+
+unsigned long ByteToMegabyte(const unsigned long value)
+{
+	return value / BYTE_PER_MB;
+}
+
+std::string GetVirtualMemory()
+{
+	std::ifstream file(MEMINFO_FILE);
+	if (!file.is_open())
+	{
+		return NOT_AVAILABLE + ": не удалось открыть " + MEMINFO_FILE;
+	}
+	std::string line;
+	while (std::getline(file, line))
+	{
+		if (!line.starts_with(VMALLOC_TOTAL))
+		{
+			continue;
+		}
+		const std::string value = line.substr(line.find(':') + 1);
+		const size_t first = value.find_first_not_of(" \t");
+		const size_t last = value.find_last_not_of(" \t");
+		return value.substr(first, last - first + 1);
+	}
+	return NOT_AVAILABLE;
+}
+
+std::string GetProcessorCount()
+{
+	return std::to_string(get_nprocs());
+}
+
+std::string GetLoadAverage(const struct sysinfo& info)
+{
+	std::stringstream ss;
+	ss << std::fixed << std::setprecision(2)
+	   << static_cast<double>(info.loads[0]) / (1 << SI_LOAD_SHIFT) << ", "
+	   << static_cast<double>(info.loads[1]) / (1 << SI_LOAD_SHIFT) << ", "
+	   << static_cast<double>(info.loads[2]) / (1 << SI_LOAD_SHIFT);
+	return ss.str();
+}
+
+std::string GetDrives()
+{
+	std::stringstream ss;
+	const MntentWrapper mntentWrapper(MOUNTS_FILE, READ_MODE);
+
+	mntent* mountEntry;
+	while ((mountEntry = getmntent(mntentWrapper.Get())) != nullptr)
+	{
+		struct statvfs vfsStats{};
+		if (statvfs(mountEntry->mnt_dir, &vfsStats) != 0)
+		{
+			continue;
+		}
+		const unsigned long totalSpace = vfsStats.f_blocks * vfsStats.f_frsize / BYTE_PER_GB;
+		if (totalSpace == 0)
+		{
+			continue;
+		}
+
+		const unsigned long freeSpace = vfsStats.f_bavail * vfsStats.f_frsize / BYTE_PER_GB;
+
+		ss << "\n\t" << std::left << std::setw(25) << mountEntry->mnt_dir
+		   << std::setw(10) << mountEntry->mnt_type
+		   << std::right << std::setw(12) << freeSpace << GB_FREE << " " << SLASH_SEPARATOR << " "
+		   << std::left << totalSpace << GB_TOTAL;
+	}
+	return ss.str();
+}
+
+int main()
+{
+	try
+	{
+		const utsname UTSName = GetUTSName();
+		const std::string OSInfo = GetOS();
+		const std::string user = GetUser();
+		const struct sysinfo systemInfo = GetSystemInfo();
+		const std::string virtualMemory = GetVirtualMemory();
+		const std::string processorCount = GetProcessorCount();
+		const std::string loadAverage = GetLoadAverage(systemInfo);
+		const std::string drives = GetDrives();
+
+		std::cout << std::left << std::setw(16) << "OS:" << OSInfo << std::endl;
+		std::cout << std::setw(16) << "Kernel:" << UTSName.sysname << " " << UTSName.release << std::endl;
+		std::cout << std::setw(16) << "Architecture:" << UTSName.machine << std::endl;
+		std::cout << std::setw(16) << "Hostname:" << UTSName.nodename << std::endl;
+		std::cout << std::setw(16) << "User:" << user << std::endl;
+		std::cout << std::setw(16) << "RAM:"
+				  << ByteToMegabyte(systemInfo.freeram) << MB_FREE << " " << SLASH_SEPARATOR
+				  << ByteToMegabyte(systemInfo.totalram) << MB_TOTAL << std::endl;
+		std::cout << std::setw(16) << "Swap:"
+				  << ByteToMegabyte(systemInfo.freeswap) << MB_FREE << " " << SLASH_SEPARATOR
+				  << ByteToMegabyte(systemInfo.totalswap) << MB_TOTAL << std::endl;
+		std::cout << std::setw(16) << "Virtual memory:" << virtualMemory << std::endl;
+		std::cout << std::setw(16) << "Processors:" << processorCount << std::endl;
+		std::cout << std::setw(16) << "Load average:" << loadAverage << std::endl;
+		std::cout << std::setw(16) << "Drives:" << drives << std::endl;
+	}
+	catch (const std::exception& e)
+	{
+		std::cout << e.what() << std::endl;
+	}
+}
