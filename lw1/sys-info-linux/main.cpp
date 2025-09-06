@@ -1,9 +1,6 @@
-#include "MntentWrapper.h"
-
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <mntent.h>
 #include <pwd.h>
 #include <string>
 #include <sys/statvfs.h>
@@ -15,7 +12,6 @@ constexpr std::string NOT_AVAILABLE = "n/a";
 constexpr std::string OS_RELEASE_FILE = "/etc/os-release";
 constexpr auto MOUNTS_FILE = "/proc/mounts";
 constexpr std::string MEMINFO_FILE = "/proc/meminfo";
-constexpr auto READ_MODE = "r";
 constexpr std::string PRETTY_NAME = "PRETTY_NAME";
 constexpr int BYTE_PER_MB = 1024 * 1024;
 constexpr int BYTE_PER_GB = 1024 * 1024 * 1024;
@@ -25,14 +21,26 @@ constexpr std::string MB_TOTAL = "MB total";
 constexpr std::string GB_FREE = "GB free";
 constexpr std::string GB_TOTAL = "GB total";
 constexpr std::string VMALLOC_TOTAL = "VmallocTotal";
-constexpr int SCALE = 65536;
+
+std::string ReadFileContent(const std::string& filePath)
+{
+	std::ifstream file(filePath);
+	if (!file.is_open())
+	{
+		throw std::runtime_error("Не удалось открыть файл: " + filePath);
+	}
+
+	std::stringstream buffer;
+	buffer << file.rdbuf();
+	return buffer.str();
+}
 
 std::string GetOS()
 {
 	std::ifstream file(OS_RELEASE_FILE);
 	if (!file.is_open())
 	{
-		return NOT_AVAILABLE + ": не удалось открыть " + MEMINFO_FILE;
+		return NOT_AVAILABLE + ": не удалось открыть " + OS_RELEASE_FILE;
 	}
 	std::string line;
 	while (std::getline(file, line))
@@ -127,16 +135,31 @@ std::string GetLoadAverage(const struct sysinfo& info)
 std::string GetDrives()
 {
 	std::stringstream ss;
-	const MntentWrapper mntentWrapper(MOUNTS_FILE, READ_MODE);
+	std::ifstream file(MOUNTS_FILE);
 
-	mntent* mountEntry;
-	while ((mountEntry = getmntent(mntentWrapper.Get())) != nullptr)
+	if (!file.is_open())
 	{
-		struct statvfs vfsStats{};
-		if (statvfs(mountEntry->mnt_dir, &vfsStats) != 0)
+		return NOT_AVAILABLE + ": не удалось открыть " + MOUNTS_FILE;
+	}
+
+	std::string line;
+	while (std::getline(file, line))
+	{
+		std::istringstream ls(line);
+		std::string fsname, dir, type, opts;
+		int freq, passno;
+
+		if (!(ls >> fsname >> dir >> type >> opts >> freq >> passno))
 		{
 			continue;
 		}
+
+		struct statvfs vfsStats{};
+		if (statvfs(dir.c_str(), &vfsStats) != 0)
+		{
+			continue;
+		}
+
 		const unsigned long totalSpace = vfsStats.f_blocks * vfsStats.f_frsize / BYTE_PER_GB;
 		if (totalSpace == 0)
 		{
@@ -145,11 +168,12 @@ std::string GetDrives()
 
 		const unsigned long freeSpace = vfsStats.f_bavail * vfsStats.f_frsize / BYTE_PER_GB;
 
-		ss << "\n\t" << std::left << std::setw(25) << mountEntry->mnt_dir
-		   << std::setw(10) << mountEntry->mnt_type
+		ss << "\n\t" << std::left << std::setw(25) << dir
+		   << std::setw(10) << type
 		   << std::right << std::setw(12) << freeSpace << GB_FREE << " " << SLASH_SEPARATOR << " "
 		   << std::left << totalSpace << GB_TOTAL;
 	}
+
 	return ss.str();
 }
 

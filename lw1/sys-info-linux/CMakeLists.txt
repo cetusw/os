@@ -4,5 +4,4 @@ project(sys_info_linux)
 set(CMAKE_CXX_STANDARD 20)
 
 add_executable(sys_info_linux main.cpp
-        MntentWrapper.cpp
-        MntentWrapper.h)
+)
