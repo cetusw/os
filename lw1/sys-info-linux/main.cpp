@@ -1,3 +1,4 @@
+#include <complex>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -112,10 +113,11 @@ std::string GetProcessorCount()
 std::string GetLoadAverage(const struct sysinfo& info)
 {
 	std::stringstream ss;
+	const double scale = std::pow(2, SI_LOAD_SHIFT);
 	ss << std::fixed << std::setprecision(2)
-	   << static_cast<double>(info.loads[0]) / (1 << SI_LOAD_SHIFT) << ", "
-	   << static_cast<double>(info.loads[1]) / (1 << SI_LOAD_SHIFT) << ", "
-	   << static_cast<double>(info.loads[2]) / (1 << SI_LOAD_SHIFT);
+	   << static_cast<double>(info.loads[0]) / scale << ", "
+	   << static_cast<double>(info.loads[1]) / scale << ", "
+	   << static_cast<double>(info.loads[2]) / scale;
 	return ss.str();
 }
 
