@@ -22,19 +22,6 @@ constexpr std::string GB_FREE = "GB free";
 constexpr std::string GB_TOTAL = "GB total";
 constexpr std::string VMALLOC_TOTAL = "VmallocTotal";
 
-std::string ReadFileContent(const std::string& filePath)
-{
-	std::ifstream file(filePath);
-	if (!file.is_open())
-	{
-		throw std::runtime_error("Не удалось открыть файл: " + filePath);
-	}
-
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-	return buffer.str();
-}
-
 std::string GetOS()
 {
 	std::ifstream file(OS_RELEASE_FILE);
@@ -59,7 +46,7 @@ std::string GetOS()
 	return NOT_AVAILABLE;
 }
 
-utsname GetUTSName()
+utsname GetUtsname()
 {
 	utsname buffer{};
 	if (uname(&buffer) != 0)
@@ -181,7 +168,7 @@ int main()
 {
 	try
 	{
-		const utsname UTSName = GetUTSName();
+		const utsname utsname = GetUtsname();
 		const std::string OSInfo = GetOS();
 		const std::string user = GetUser();
 		const struct sysinfo systemInfo = GetSystemInfo();
@@ -191,9 +178,9 @@ int main()
 		const std::string drives = GetDrives();
 
 		std::cout << std::left << std::setw(16) << "OS:" << OSInfo << std::endl;
-		std::cout << std::setw(16) << "Kernel:" << UTSName.sysname << " " << UTSName.release << std::endl;
-		std::cout << std::setw(16) << "Architecture:" << UTSName.machine << std::endl;
-		std::cout << std::setw(16) << "Hostname:" << UTSName.nodename << std::endl;
+		std::cout << std::setw(16) << "Kernel:" << utsname.sysname << " " << utsname.release << std::endl;
+		std::cout << std::setw(16) << "Architecture:" << utsname.machine << std::endl;
+		std::cout << std::setw(16) << "Hostname:" << utsname.nodename << std::endl;
 		std::cout << std::setw(16) << "User:" << user << std::endl;
 		std::cout << std::setw(16) << "RAM:"
 				  << ByteToMegabyte(systemInfo.freeram) << MB_FREE << " " << SLASH_SEPARATOR
