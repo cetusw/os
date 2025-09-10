@@ -9,6 +9,8 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
+// TODO: выяснить posix
+
 constexpr std::string NOT_AVAILABLE = "n/a";
 constexpr std::string OS_RELEASE_FILE = "/etc/os-release";
 constexpr auto MOUNTS_FILE = "/proc/mounts";
@@ -22,6 +24,8 @@ constexpr std::string MB_TOTAL = "MB total";
 constexpr std::string GB_FREE = "GB free";
 constexpr std::string GB_TOTAL = "GB total";
 constexpr std::string VMALLOC_TOTAL = "VmallocTotal";
+
+// TODO: получить информацию о памяти из командной строки
 
 std::string GetOS()
 {
@@ -57,6 +61,9 @@ utsname GetUtsname()
 	return buffer;
 }
 
+// использовать функции с w
+
+// если метод возвращает указатель, то нужно убедиться, что его не нужно уничтожать
 std::string GetUser()
 {
 	const passwd* pw = getpwuid(getuid());
@@ -97,10 +104,13 @@ std::string GetVirtualMemory()
 		{
 			continue;
 		}
-		const std::string value = line.substr(line.find(':') + 1);
+		std::string value = line.substr(line.find(':') + 1);
 		const size_t first = value.find_first_not_of(" \t");
-		const size_t last = value.find_last_not_of(" \t");
-		return value.substr(first, last - first + 1);
+		value = value.substr(first, line.find(' ') + 1 - first);
+		return std::stod(value) / 1024;
+		// const size_t first = value.find_first_not_of(" \t");
+		// const size_t last = value.find_last_not_of(" \t");
+		// return value.substr(first, last - first + 1);
 	}
 	return NOT_AVAILABLE;
 }
