@@ -1,10 +1,10 @@
+#include <windows.h>
 #include <VersionHelpers.h>
 #include <iomanip>
 #include <iostream>
 #include <psapi.h>
 #include <string>
 #include <vector>
-#include <windows.h>
 
 constexpr double BYTE_PER_KB = 1024;
 constexpr double BYTE_PER_MB = BYTE_PER_KB * 1024;
@@ -14,6 +14,11 @@ constexpr std::string MB_FREE = "MB free";
 constexpr std::string MB_TOTAL = "MB total";
 constexpr std::string GB_FREE = "GB free";
 constexpr std::string GB_TOTAL = "GB total";
+
+double ByteToMegabyte(const DWORDLONG memory)
+{
+	return static_cast<double>(memory) / BYTE_PER_MB;
+}
 
 std::string GetOS()
 {
@@ -69,20 +74,20 @@ std::wstring GetCompName()
 	DWORD bufferSize = 0;
 	std::wstring computerName;
 
-	if (!GetComputerNameExW(ComputerNameDnsHostname, nullptr, &bufferSize))
+	GetComputerNameExW(ComputerNameDnsHostname, nullptr, &bufferSize);
+
+	if (GetLastError() != ERROR_MORE_DATA)
 	{
-		if (GetLastError() == ERROR_MORE_DATA)
-		{
-			computerName.resize(bufferSize);
-			if (GetComputerNameExW(ComputerNameDnsHostname, computerName.data(), &bufferSize))
-			{
-				return computerName;
-			}
-			return L"Error getting computer name";
-		}
-		return L"Error determining buffer size: " + GetLastError();
+		throw std::runtime_error("Failed to determine buffer size. Error code: " + std::to_string(GetLastError()));
 	}
-	return L"";
+
+	computerName.resize(bufferSize);
+	if (GetComputerNameExW(ComputerNameDnsHostname, computerName.data(), &bufferSize))
+	{
+		return computerName;
+	}
+
+	throw std::runtime_error("Failed to get computer name. Error code: " + std::to_string(GetLastError()));
 }
 
 std::wstring GetUsrName()
@@ -90,29 +95,20 @@ std::wstring GetUsrName()
 	DWORD bufferSize = 0;
 	std::wstring userName;
 
-	if (!GetUserNameW(nullptr, &bufferSize))
+	GetUserNameW(nullptr, &bufferSize);
+
+	if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)
 	{
-		DWORD lastError = GetLastError();
-		if (lastError == ERROR_MORE_DATA)
-		{
-			userName.resize(bufferSize);
-			if (GetUserNameW(userName.data(), &bufferSize))
-			{
-				if (bufferSize > 1)
-				{
-					userName.resize(bufferSize - 1);
-				}
-				else
-				{
-					userName.clear();
-				}
-				return userName;
-			}
-			throw std::runtime_error("Failed to get user name. Error code: " + std::to_string(GetLastError()));
-		}
-		throw std::runtime_error("Failed to determine buffer size. Error code: " + std::to_string(lastError));
+		throw std::runtime_error("Failed to determine buffer size. Error code: " + std::to_string(GetLastError()));
 	}
-	return L"Unlikely success with null buffer";
+
+	userName.resize(bufferSize);
+	if (GetUserNameW(userName.data(), &bufferSize))
+	{
+		return userName;
+	}
+
+	throw std::runtime_error("Failed to get user name. Error code: " + std::to_string(GetLastError()));
 }
 
 SYSTEM_INFO GetSysInfo()
@@ -153,11 +149,6 @@ MEMORYSTATUSEX GetMemoryInfo()
 	return memInfo;
 }
 
-double ByteToMegabyte(const DWORDLONG memory)
-{
-	return static_cast<double>(memory) / BYTE_PER_MB;
-}
-
 PERFORMANCE_INFORMATION GetPerfInfo()
 {
 	PERFORMANCE_INFORMATION perfInfo;
@@ -172,9 +163,8 @@ PERFORMANCE_INFORMATION GetPerfInfo()
 	return perfInfo;
 }
 
-std::wstring GetDrivesInfo()
+std::vector<wchar_t> GetLogicalDriveStr()
 {
-	std::wstringstream drivesInfo;
 	const DWORD bufferSize = GetLogicalDriveStringsW(0, nullptr);
 	if (bufferSize == 0)
 	{
@@ -187,7 +177,26 @@ std::wstring GetDrivesInfo()
 		throw std::runtime_error("Failed to get logical drive strings. Error: " + GetLastError());
 	}
 
-	const wchar_t* currentDrive = buffer.data();
+	return buffer;
+}
+
+std::wstring GetFileSystemName(const wchar_t* currentDrive)
+{
+	wchar_t fileSystemNameBuffer[MAX_PATH + 1] = {};
+	if (!GetVolumeInformationW(currentDrive, nullptr, 0, nullptr, nullptr, nullptr, fileSystemNameBuffer, MAX_PATH + 1))
+	{
+		wcscpy_s(fileSystemNameBuffer, L"N/A");
+	}
+
+	return fileSystemNameBuffer;
+}
+
+std::wstring GetDrivesInfo()
+{
+	std::wstringstream drivesInfo;
+	const std::vector<wchar_t> logicalDrives = GetLogicalDriveStr();
+
+	const wchar_t* currentDrive = logicalDrives.data();
 	while (*currentDrive)
 	{
 		ULARGE_INTEGER freeBytesAvailable, totalNumberOfBytes;
@@ -199,16 +208,11 @@ std::wstring GetDrivesInfo()
 			continue;
 		}
 
-		wchar_t fileSystemNameBuffer[MAX_PATH + 1] = {};
-		if (!GetVolumeInformationW(currentDrive, nullptr, 0, nullptr, nullptr, nullptr, fileSystemNameBuffer, MAX_PATH + 1))
-		{
-			wcscpy_s(fileSystemNameBuffer, L"N/A");
-		}
-
+		const std::wstring fileSystemName = GetFileSystemName(currentDrive);
 		const double freeGB = static_cast<double>(freeBytesAvailable.QuadPart) / BYTE_PER_GB;
 		const double totalGB = static_cast<double>(totalNumberOfBytes.QuadPart) / BYTE_PER_GB;
 
-		drivesInfo << L"  - " << currentDrive << L"  (" << fileSystemNameBuffer << L"): "
+		drivesInfo << L"  - " << currentDrive << L"  (" << fileSystemName << L"): "
 				   << std::fixed << std::setprecision(0) << freeGB << L" GB free / "
 				   << totalGB << L" GB total" << std::endl;
 
@@ -231,7 +235,7 @@ int main()
 
 		std::cout << std::left << std::setw(16) << "OS:" << GetOS() << std::endl;
 		std::wcout << std::left << std::setw(16) << "Computer Name:" << GetCompName() << std::endl;
-		// std::wcout << std::left << std::setw(16) << "User:" << GetUsrName() << std::endl;
+		std::wcout << std::left << std::setw(16) << "User:" << GetUsrName() << std::endl;
 		std::cout << std::setw(16) << "Architecture:" << GetProcessorArchitecture(sysInfo) << std::endl;
 		std::cout << std::setw(16) << "RAM:"
 				  << ByteToMegabyte(memoryInfo.ullAvailPhys) << MB_FREE << " " << SEPARATOR << " "
