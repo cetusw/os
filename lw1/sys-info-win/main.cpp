@@ -1,17 +1,19 @@
-#include <windows.h>
 #include <VersionHelpers.h>
 #include <iomanip>
 #include <iostream>
+#include <psapi.h>
 #include <string>
+#include <vector>
+#include <windows.h>
 
-constexpr double BYTE_PER_MB = 1024 * 1024;
-constexpr double BYTE_PER_GB = 1024 * 1024 * 1024;
-constexpr std::string SLASH_SEPARATOR = "/";
+constexpr double BYTE_PER_KB = 1024;
+constexpr double BYTE_PER_MB = BYTE_PER_KB * 1024;
+constexpr double BYTE_PER_GB = BYTE_PER_MB * 1024;
+constexpr std::string SEPARATOR = "/";
 constexpr std::string MB_FREE = "MB free";
 constexpr std::string MB_TOTAL = "MB total";
 constexpr std::string GB_FREE = "GB free";
 constexpr std::string GB_TOTAL = "GB total";
-
 
 std::string GetOS()
 {
@@ -113,11 +115,15 @@ std::wstring GetUsrName()
 	return L"Unlikely success with null buffer";
 }
 
-std::string GetProcessorArchitecture()
+SYSTEM_INFO GetSysInfo()
 {
 	SYSTEM_INFO sysInfo;
 	GetNativeSystemInfo(&sysInfo);
+	return sysInfo;
+}
 
+std::string GetProcessorArchitecture(const SYSTEM_INFO& sysInfo)
+{
 	switch (sysInfo.wProcessorArchitecture)
 	{
 	case PROCESSOR_ARCHITECTURE_AMD64:
@@ -144,41 +150,100 @@ MEMORYSTATUSEX GetMemoryInfo()
 		throw std::runtime_error("Failed to get memory information. Error code: " + std::to_string(GetLastError()));
 	}
 
-	// const double totalPhysGB = static_cast<double>(memInfo.ullTotalPhys) / BYTE_PER_MB;
-	// const double availPhysGB = static_cast<double>(memInfo.ullAvailPhys) / BYTE_PER_MB;
-	//
-	// std::stringstream ss;
-	// ss << std::fixed << std::setprecision(2);
-	// ss << totalPhysGB << MB_TOTAL << SLASH_SEPARATOR << availPhysGB << MB_FREE;
-
 	return memInfo;
 }
 
 double ByteToMegabyte(const DWORDLONG memory)
 {
-	std::cout << memory << std::endl;
 	return static_cast<double>(memory) / BYTE_PER_MB;
+}
+
+PERFORMANCE_INFORMATION GetPerfInfo()
+{
+	PERFORMANCE_INFORMATION perfInfo;
+	perfInfo.cb = sizeof(PERFORMANCE_INFORMATION);
+
+	if (!GetPerformanceInfo(&perfInfo, sizeof(PERFORMANCE_INFORMATION)))
+	{
+		std::cout << "Failed to get performance information." << std::endl;
+		return {};
+	}
+
+	return perfInfo;
+}
+
+std::wstring GetDrivesInfo()
+{
+	std::wstringstream drivesInfo;
+	const DWORD bufferSize = GetLogicalDriveStringsW(0, nullptr);
+	if (bufferSize == 0)
+	{
+		throw std::runtime_error("Failed to get logical drive strings size. Error: " + GetLastError());
+	}
+
+	std::vector<wchar_t> buffer(bufferSize);
+	if (GetLogicalDriveStringsW(bufferSize, buffer.data()) == 0)
+	{
+		throw std::runtime_error("Failed to get logical drive strings. Error: " + GetLastError());
+	}
+
+	const wchar_t* currentDrive = buffer.data();
+	while (*currentDrive)
+	{
+		ULARGE_INTEGER freeBytesAvailable, totalNumberOfBytes;
+
+		if (!GetDiskFreeSpaceExW(currentDrive, &freeBytesAvailable, &totalNumberOfBytes, nullptr))
+		{
+			drivesInfo << L"  - " << currentDrive << L" : Failed to get disk info." << std::endl;
+			currentDrive += wcslen(currentDrive) + 1;
+			continue;
+		}
+
+		wchar_t fileSystemNameBuffer[MAX_PATH + 1] = {};
+		if (!GetVolumeInformationW(currentDrive, nullptr, 0, nullptr, nullptr, nullptr, fileSystemNameBuffer, MAX_PATH + 1))
+		{
+			wcscpy_s(fileSystemNameBuffer, L"N/A");
+		}
+
+		const double freeGB = static_cast<double>(freeBytesAvailable.QuadPart) / BYTE_PER_GB;
+		const double totalGB = static_cast<double>(totalNumberOfBytes.QuadPart) / BYTE_PER_GB;
+
+		drivesInfo << L"  - " << currentDrive << L"  (" << fileSystemNameBuffer << L"): "
+				   << std::fixed << std::setprecision(0) << freeGB << L" GB free / "
+				   << totalGB << L" GB total" << std::endl;
+
+		currentDrive += wcslen(currentDrive) + 1;
+	}
+
+	return drivesInfo.str();
 }
 
 int main()
 {
 	try
 	{
-		MEMORYSTATUSEX memoryInfo = GetMemoryInfo();
+		const MEMORYSTATUSEX memoryInfo = GetMemoryInfo();
+		const PERFORMACE_INFORMATION perfInfo = GetPerfInfo();
+		const SYSTEM_INFO sysInfo = GetSysInfo();
+
+		const double virtualMemoryMB = ByteToMegabyte(perfInfo.CommitLimit * perfInfo.PageSize);
+		const double pageFileMB = virtualMemoryMB - ByteToMegabyte(memoryInfo.ullTotalPhys);
 
 		std::cout << std::left << std::setw(16) << "OS:" << GetOS() << std::endl;
 		std::wcout << std::left << std::setw(16) << "Computer Name:" << GetCompName() << std::endl;
 		// std::wcout << std::left << std::setw(16) << "User:" << GetUsrName() << std::endl;
-		std::cout << std::setw(16) << "Architecture:" << GetProcessorArchitecture() << std::endl;
+		std::cout << std::setw(16) << "Architecture:" << GetProcessorArchitecture(sysInfo) << std::endl;
 		std::cout << std::setw(16) << "RAM:"
-				  << ByteToMegabyte(memoryInfo.ullTotalPhys) << MB_TOTAL << " " << SLASH_SEPARATOR << " "
-				  << ByteToMegabyte(memoryInfo.ullAvailPhys) << MB_FREE << std::endl;
-
-		std::cout << std::setw(16) << "Virtual memory:" << ByteToMegabyte(memoryInfo.ullTotalVirtual) << "MB" << std::endl;
-		// std::cout << std::setw(16) << "Memory load:" << virtualMemory << std::endl;
-		// std::cout << std::setw(16) << "Pagefile:" << loadAverage << std::endl;
-		// std::cout << std::setw(16) << "Processors:" << processorCount << std::endl;
-		// std::cout << std::setw(16) << "Drives:" << drives << std::endl;
+				  << ByteToMegabyte(memoryInfo.ullAvailPhys) << MB_FREE << " " << SEPARATOR << " "
+				  << ByteToMegabyte(memoryInfo.ullTotalPhys) << MB_TOTAL << std::endl;
+		std::cout << std::setw(16) << "Virtual memory:" << virtualMemoryMB << "MB" << std::endl;
+		std::cout << std::setw(16) << "Memory load:" << memoryInfo.dwMemoryLoad << "%" << std::endl;
+		std::cout << std::setw(16) << "Pagefile:"
+				  << pageFileMB << "MB" << " " << SEPARATOR << " "
+				  << virtualMemoryMB << "MB" << std::endl;
+		std::cout << std::setw(16) << "Processors:" << sysInfo.dwNumberOfProcessors << std::endl;
+		std::wcout << std::setw(16) << L"Drives:" << std::endl
+				   << GetDrivesInfo() << std::endl;
 	}
 	catch (const std::exception& e)
 	{
