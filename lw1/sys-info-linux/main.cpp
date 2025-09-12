@@ -16,8 +16,9 @@ constexpr std::string OS_RELEASE_FILE = "/etc/os-release";
 constexpr auto MOUNTS_FILE = "/proc/mounts";
 constexpr std::string MEMINFO_FILE = "/proc/meminfo";
 constexpr std::string PRETTY_NAME = "PRETTY_NAME";
-constexpr int BYTE_PER_MB = 1024 * 1024;
-constexpr int BYTE_PER_GB = 1024 * 1024 * 1024;
+constexpr unsigned long BYTE_PER_KB = 1024;
+constexpr unsigned long BYTE_PER_MB = BYTE_PER_KB * 1024;
+constexpr unsigned long BYTE_PER_GB = BYTE_PER_MB * 1024;
 constexpr std::string SLASH_SEPARATOR = "/";
 constexpr std::string MB_FREE = "MB free";
 constexpr std::string MB_TOTAL = "MB total";
@@ -90,12 +91,13 @@ unsigned long ByteToMegabyte(const unsigned long value)
 	return value / BYTE_PER_MB;
 }
 
-std::string GetVirtualMemory()
+// TODO: выводить виртуальную память в МБ
+double GetVirtualMemory()
 {
 	std::ifstream file(MEMINFO_FILE);
 	if (!file.is_open())
 	{
-		return NOT_AVAILABLE + ": не удалось открыть " + MEMINFO_FILE;
+		return 0;
 	}
 	std::string line;
 	while (std::getline(file, line))
@@ -107,12 +109,10 @@ std::string GetVirtualMemory()
 		std::string value = line.substr(line.find(':') + 1);
 		const size_t first = value.find_first_not_of(" \t");
 		value = value.substr(first, line.find(' ') + 1 - first);
-		return std::stod(value) / 1024;
-		// const size_t first = value.find_first_not_of(" \t");
-		// const size_t last = value.find_last_not_of(" \t");
-		// return value.substr(first, last - first + 1);
+		const double numericValue = std::stod(value);
+		return numericValue / BYTE_PER_MB;
 	}
-	return NOT_AVAILABLE;
+	return 0;
 }
 
 std::string GetProcessorCount()
@@ -184,7 +184,7 @@ int main()
 		const std::string OSInfo = GetOS();
 		const std::string user = GetUser();
 		const struct sysinfo systemInfo = GetSystemInfo();
-		const std::string virtualMemory = GetVirtualMemory();
+		const double virtualMemory = GetVirtualMemory();
 		const std::string processorCount = GetProcessorCount();
 		const std::string loadAverage = GetLoadAverage(systemInfo);
 		const std::string drives = GetDrives();
@@ -195,12 +195,12 @@ int main()
 		std::cout << std::setw(16) << "Hostname:" << utsname.nodename << std::endl;
 		std::cout << std::setw(16) << "User:" << user << std::endl;
 		std::cout << std::setw(16) << "RAM:"
-				  << ByteToMegabyte(systemInfo.freeram) << MB_FREE << " " << SLASH_SEPARATOR
+				  << ByteToMegabyte(systemInfo.freeram) << MB_FREE << " " << SLASH_SEPARATOR << " "
 				  << ByteToMegabyte(systemInfo.totalram) << MB_TOTAL << std::endl;
 		std::cout << std::setw(16) << "Swap:"
-				  << ByteToMegabyte(systemInfo.freeswap) << MB_FREE << " " << SLASH_SEPARATOR
+				  << ByteToMegabyte(systemInfo.freeswap) << MB_FREE << " " << SLASH_SEPARATOR << " "
 				  << ByteToMegabyte(systemInfo.totalswap) << MB_TOTAL << std::endl;
-		std::cout << std::setw(16) << "Virtual memory:" << virtualMemory << std::endl;
+		std::cout << std::setw(16) << "Virtual memory:" << std::fixed << std::setprecision(1) << virtualMemory << "MB" << std::endl;
 		std::cout << std::setw(16) << "Processors:" << processorCount << std::endl;
 		std::cout << std::setw(16) << "Load average:" << loadAverage << std::endl;
 		std::cout << std::setw(16) << "Drives:" << drives << std::endl;
