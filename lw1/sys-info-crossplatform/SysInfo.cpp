@@ -14,11 +14,11 @@ constexpr uint64_t BYTE_PER_GB = BYTE_PER_MB * 1024;
 #include <fstream>
 #include <sstream>
 #include <sys/sysinfo.h>
+#include <sys/utsname.h>
 
 constexpr std::string OS_RELEASE_FILE = "/etc/os-release";
 constexpr std::string NOT_AVAILABLE = "n/a";
 constexpr std::string PRETTY_NAME = "PRETTY_NAME";
-
 #endif
 
 std::string SysInfo::GetOSName() const
@@ -26,7 +26,7 @@ std::string SysInfo::GetOSName() const
 #ifdef _WIN32
     return "Windows";
 #elif __linux__
-    return "Linux"
+    return "Linux";
 #endif
 }
 
@@ -139,6 +139,6 @@ unsigned SysInfo::GetProcessorCount() const
     GetNativeSystemInfo(&sysInfo);
     return sysInfo.dwNumberOfProcessors;
 #elif __linux__
-    return std::to_string(get_nprocs());
+    return get_nprocs();
 #endif
 }
