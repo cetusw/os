@@ -1,6 +1,5 @@
-#include <stdexcept>
-
 #include "SysInfo.h"
+#include <stdexcept>
 #include <windows.h>
 #include <VersionHelpers.h>
 
