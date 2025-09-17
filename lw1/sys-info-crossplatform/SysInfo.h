@@ -1,8 +1,7 @@
-#ifndef SYSINFO_H
-#define SYSINFO_H
+#ifndef SYS_INFO_CROSSPLATFORM_SYSINFO_H
+#define SYS_INFO_CROSSPLATFORM_SYSINFO_H
 #include <cstdint>
 #include <string>
-
 
 class SysInfo
 {
@@ -14,6 +13,4 @@ public:
     [[nodiscard]] unsigned GetProcessorCount() const;
 };
 
-
-
-#endif //SYSINFO_H
+#endif //SYS_INFO_CROSSPLATFORM_SYSINFO_H
