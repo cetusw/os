@@ -317,18 +317,11 @@ void PrintSumOfSharedAndPrivateMemory(const std::vector<Process>& processes)
 
 int main()
 {
-	try
-	{
-		std::vector<Process> processes = GetProcesses();
-		SortProcesses(processes);
-		const ColumnWidth columnWidth = GetMaxWidths(processes);
-		PrintHeadline(columnWidth);
-		PrintProcesses(processes, columnWidth);
-		PrintTotalProcessesCount(processes);
-		PrintSumOfSharedAndPrivateMemory(processes);
-	}
-	catch (const std::exception& e)
-	{
-		std::cerr << e.what() << std::endl;
-	}
+	std::vector<Process> processes = GetProcesses();
+	SortProcesses(processes);
+	const ColumnWidth columnWidth = GetMaxWidths(processes);
+	PrintHeadline(columnWidth);
+	PrintProcesses(processes, columnWidth);
+	PrintTotalProcessesCount(processes);
+	PrintSumOfSharedAndPrivateMemory(processes);
 }
