@@ -7,6 +7,10 @@
 #include <string>
 #include <vector>
 
+constexpr unsigned long BYTE_PER_KB = 1024;
+constexpr unsigned long BYTE_PER_MB = BYTE_PER_KB * 1024;
+constexpr unsigned long BYTE_PER_GB = BYTE_PER_MB * 1024;
+constexpr unsigned long KB_PER_MB = 1024;
 constexpr std::string SOURCE_DIR = "/proc";
 constexpr std::string PROCESS_NAME_FILE = "/comm";
 constexpr std::string CMD_LINE_FILE = "/cmdline";
@@ -21,26 +25,36 @@ constexpr std::string PRIVATE_DIRTY = "Private_Dirty:";
 constexpr int COLUMN_WIDTH_SHIFT = 2;
 constexpr std::string UNKNOWN = "unknown";
 
-// TODO: отсортировать по объёму памяти (Private + Shared)
 struct Process
 {
 	std::string pid;
-	std::string command;
+	std::string name;
 	std::string user;
-	int sharedMemoryKB;
-	int privateMemoryKB;
-	float cpu;
+	int sharedMemoryKB = 0;
+	int privateMemoryKB = 0;
+	float cpu = 0.0f;
 };
 
 struct ColumnWidth
 {
 	int pidWidth = 0;
-	int commandWidth = 0;
+	int nameWidth = 0;
 	int userWidth = 0;
 	int sharedWidth = 0;
 	int privateWidth = 0;
 	int cpuWidth = 0;
 };
+
+bool IsProcessAlive(const std::string& pid)
+{
+	const std::filesystem::path procDir = SOURCE_DIR + "/" + pid;
+	return std::filesystem::exists(procDir) && std::filesystem::is_directory(procDir);
+}
+
+unsigned long KilobyteToMegabyte(const unsigned long value)
+{
+	return value / KB_PER_MB;
+}
 
 bool isNumber(const std::string& s)
 {
@@ -117,7 +131,7 @@ std::vector<std::string> GetPIDs()
 	return pids;
 }
 
-std::string GetCommand(const std::string& pid)
+std::string GetProcessName(const std::string& pid)
 {
 	std::ifstream processNameFile(SOURCE_DIR + "/" + pid + PROCESS_NAME_FILE);
 	if (!processNameFile.is_open())
@@ -143,8 +157,20 @@ std::string GetUserNameByUid(const int uid)
 std::string GetProcessUserName(const std::string& pid)
 {
 	const std::string uidString = GetValueFromFileField(SOURCE_DIR + "/" + pid + STATUS_FILE, UID_FIELD);
-	const int uid = std::stoi(uidString);
-	return GetUserNameByUid(uid);
+	if (uidString == UNKNOWN)
+	{
+		return UNKNOWN;
+	}
+
+	try
+	{
+		const int uid = std::stoi(uidString);
+		return GetUserNameByUid(uid);
+	}
+	catch (...)
+	{
+		return UNKNOWN;
+	}
 }
 
 int GetSharedMemory(const std::string& pid)
@@ -156,7 +182,14 @@ int GetSharedMemory(const std::string& pid)
 	sharedCleanString = ParseValueWithoutUnits(sharedCleanString);
 	sharedDirtyString = ParseValueWithoutUnits(sharedDirtyString);
 
-	return std::stoi(sharedCleanString) + std::stoi(sharedDirtyString);
+	try
+	{
+		return std::stoi(sharedCleanString) + std::stoi(sharedDirtyString);
+	}
+	catch (...)
+	{
+		return 0;
+	}
 }
 
 int GetPrivateMemory(const std::string& pid)
@@ -168,13 +201,20 @@ int GetPrivateMemory(const std::string& pid)
 	privateCleanString = ParseValueWithoutUnits(privateCleanString);
 	privateDirtyString = ParseValueWithoutUnits(privateDirtyString);
 
-	return std::stoi(privateCleanString) + std::stoi(privateDirtyString);
+	try
+	{
+		return std::stoi(privateCleanString) + std::stoi(privateDirtyString);
+	}
+	catch (...)
+	{
+		return 0;
+	}
 }
 
 ColumnWidth GetMaxWidths(const std::vector<Process>& processes)
 {
 	int maxPidLength = 0;
-	int maxCommandLength = 0;
+	int maxNameLength = 0;
 	int maxUserLength = 0;
 	int maxSharedLength = 0;
 	int maxPrivateLength = 0;
@@ -182,7 +222,7 @@ ColumnWidth GetMaxWidths(const std::vector<Process>& processes)
 	for (const Process& p : processes)
 	{
 		maxPidLength = std::max(maxPidLength, static_cast<int>(p.pid.length()));
-		maxCommandLength = std::max(maxCommandLength, static_cast<int>(p.command.length()));
+		maxNameLength = std::max(maxNameLength, static_cast<int>(p.name.length()));
 		maxUserLength = std::max(maxUserLength, static_cast<int>(p.user.length()));
 		maxSharedLength = std::max(maxSharedLength, static_cast<int>(std::to_string(p.sharedMemoryKB).length()));
 		maxPrivateLength = std::max(maxPrivateLength, static_cast<int>(std::to_string(p.privateMemoryKB).length()));
@@ -190,7 +230,7 @@ ColumnWidth GetMaxWidths(const std::vector<Process>& processes)
 
 	ColumnWidth columnWidth;
 	columnWidth.pidWidth = maxPidLength + COLUMN_WIDTH_SHIFT;
-	columnWidth.commandWidth = maxCommandLength + COLUMN_WIDTH_SHIFT;
+	columnWidth.nameWidth = maxNameLength + COLUMN_WIDTH_SHIFT;
 	columnWidth.userWidth = maxUserLength + COLUMN_WIDTH_SHIFT;
 	columnWidth.sharedWidth = maxSharedLength + COLUMN_WIDTH_SHIFT;
 	columnWidth.privateWidth = maxPrivateLength + COLUMN_WIDTH_SHIFT;
@@ -204,9 +244,14 @@ std::vector<Process> GetProcesses()
 	std::vector<Process> processes;
 	for (const std::string& pid : pids)
 	{
+		if (!IsProcessAlive(pid))
+		{
+			continue;
+		}
+
 		Process process;
 		process.pid = pid;
-		process.command = GetCommand(pid);
+		process.name = GetProcessName(pid);
 		process.user = GetProcessUserName(pid);
 		process.sharedMemoryKB = GetSharedMemory(pid);
 		process.privateMemoryKB = GetPrivateMemory(pid);
@@ -217,14 +262,56 @@ std::vector<Process> GetProcesses()
 	return processes;
 }
 
-void PrintHeadline(ColumnWidth columnWidth)
+void SortProcesses(std::vector<Process>& processes)
+{
+	std::ranges::sort(processes, [](const Process& a, const Process& b) {
+		const int totalA = a.sharedMemoryKB + a.privateMemoryKB;
+		const int totalB = b.sharedMemoryKB + b.privateMemoryKB;
+		return totalA > totalB;
+	});
+}
+
+void PrintHeadline(const ColumnWidth& columnWidth)
 {
 	std::cout << std::left
 			  << std::setw(columnWidth.pidWidth) << "PID"
-			  << std::setw(columnWidth.commandWidth) << "COMMAND"
+			  << std::setw(columnWidth.nameWidth) << "NAME"
 			  << std::setw(columnWidth.userWidth) << "USER"
 			  << std::setw(columnWidth.sharedWidth) << "SHARED"
 			  << std::setw(columnWidth.privateWidth) << "PRIVATE"
+			  << std::endl;
+}
+
+void PrintProcesses(const std::vector<Process>& processes, const ColumnWidth& columnWidth)
+{
+	for (const Process& process : processes)
+	{
+		std::cout << std::left
+				  << std::setw(columnWidth.pidWidth) << process.pid
+				  << std::setw(columnWidth.nameWidth) << process.name
+				  << std::setw(columnWidth.userWidth) << process.user
+				  << std::setw(columnWidth.sharedWidth) << process.sharedMemoryKB
+				  << std::setw(columnWidth.privateWidth) << process.privateMemoryKB
+				  << std::endl;
+	}
+	std::cout << std::endl;
+}
+
+void PrintTotalProcessesCount(const std::vector<Process>& processes)
+{
+	std::cout << "Общее количество процессов: " << processes.size() << std::endl;
+}
+
+void PrintSumOfSharedAndPrivateMemory(const std::vector<Process>& processes)
+{
+	unsigned long sum = 0;
+	for (const Process& process : processes)
+	{
+		sum += process.sharedMemoryKB + process.privateMemoryKB;
+	}
+
+	std::cout << "Суммарный объём Private и Shared памяти по всем процессам: "
+			  << KilobyteToMegabyte(sum) << " MB"
 			  << std::endl;
 }
 
@@ -232,19 +319,13 @@ int main()
 {
 	try
 	{
-		const std::vector<Process> processes = GetProcesses();
+		std::vector<Process> processes = GetProcesses();
+		SortProcesses(processes);
 		const ColumnWidth columnWidth = GetMaxWidths(processes);
 		PrintHeadline(columnWidth);
-		for (const Process process : processes)
-		{
-			std::cout << std::left
-					  << std::setw(columnWidth.pidWidth) << process.pid
-					  << std::setw(columnWidth.commandWidth) << process.command
-					  << std::setw(columnWidth.userWidth) << process.user
-					  << std::setw(columnWidth.sharedWidth) << process.sharedMemoryKB
-					  << std::setw(columnWidth.privateWidth) << process.privateMemoryKB
-					  << std::endl;
-		}
+		PrintProcesses(processes, columnWidth);
+		PrintTotalProcessesCount(processes);
+		PrintSumOfSharedAndPrivateMemory(processes);
 	}
 	catch (const std::exception& e)
 	{
