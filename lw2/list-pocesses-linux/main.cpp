@@ -94,7 +94,6 @@ std::string GetValueFromFileField(const std::string& fileName, const std::string
 	std::ifstream file(fileName);
 	if (!file.is_open())
 	{
-		std::cerr << "Failed to open file: " << fileName << std::endl;
 		return UNKNOWN;
 	}
 	std::string line;
