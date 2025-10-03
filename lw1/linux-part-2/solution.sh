@@ -10,7 +10,7 @@ mkdir out
 cd out
 
 touch me.txt
-
+# TODO: выяснить как дописать информацию, выводисмую программеой в файл
 whoami > me.txt
 
 cp me.txt metoo.txt
