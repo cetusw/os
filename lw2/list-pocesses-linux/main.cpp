@@ -22,6 +22,7 @@ constexpr std::string SHARED_CLEAN = "Shared_Clean:";
 constexpr std::string SHARED_DIRTY = "Shared_Dirty:";
 constexpr std::string PRIVATE_CLEAN = "Private_Clean:";
 constexpr std::string PRIVATE_DIRTY = "Private_Dirty:";
+constexpr std::string THREADS_FIELD = "Threads:";
 constexpr int COLUMN_WIDTH_SHIFT = 2;
 constexpr std::string UNKNOWN = "unknown";
 
@@ -32,6 +33,8 @@ struct Process
 	std::string user;
 	int sharedMemoryKB = 0;
 	int privateMemoryKB = 0;
+	int threads = 0;
+	std::string cmd = UNKNOWN;
 	float cpu = 0.0f;
 };
 
@@ -42,6 +45,8 @@ struct ColumnWidth
 	int userWidth = 0;
 	int sharedWidth = 0;
 	int privateWidth = 0;
+	int cmdWidth = 0;
+	int threadsWidth = 0;
 	int cpuWidth = 0;
 };
 
@@ -217,6 +222,8 @@ ColumnWidth GetMaxWidths(const std::vector<Process>& processes)
 	int maxUserLength = 0;
 	int maxSharedLength = 0;
 	int maxPrivateLength = 0;
+	int maxCmdLength = 0;
+	int maxThreadsLength = 0;
 
 	for (const Process& p : processes)
 	{
@@ -225,6 +232,8 @@ ColumnWidth GetMaxWidths(const std::vector<Process>& processes)
 		maxUserLength = std::max(maxUserLength, static_cast<int>(p.user.length()));
 		maxSharedLength = std::max(maxSharedLength, static_cast<int>(std::to_string(p.sharedMemoryKB).length()));
 		maxPrivateLength = std::max(maxPrivateLength, static_cast<int>(std::to_string(p.privateMemoryKB).length()));
+		maxCmdLength = std::max(maxCmdLength, static_cast<int>(p.cmd.length()));
+		maxThreadsLength = std::max(maxThreadsLength, static_cast<int>(std::to_string(p.threads).length() + 4));
 	}
 
 	ColumnWidth columnWidth;
@@ -233,8 +242,46 @@ ColumnWidth GetMaxWidths(const std::vector<Process>& processes)
 	columnWidth.userWidth = maxUserLength + COLUMN_WIDTH_SHIFT;
 	columnWidth.sharedWidth = maxSharedLength + COLUMN_WIDTH_SHIFT;
 	columnWidth.privateWidth = maxPrivateLength + COLUMN_WIDTH_SHIFT;
+	columnWidth.cmdWidth = maxCmdLength + COLUMN_WIDTH_SHIFT;
+	columnWidth.threadsWidth = maxThreadsLength + COLUMN_WIDTH_SHIFT;
 
 	return columnWidth;
+}
+
+std::string GetProcessCmdLine(const std::string& pid)
+{
+	std::ifstream file(SOURCE_DIR + "/" + pid + CMD_LINE_FILE, std::ios::binary);
+	if (!file.is_open())
+	{
+		return UNKNOWN;
+	}
+
+	std::string cmd;
+	getline(file, cmd);
+	if (cmd.empty())
+	{
+		return UNKNOWN;
+	}
+
+	return cmd;
+}
+
+int GetProcessThreads(const std::string& pid)
+{
+	const std::string threadsStr = GetValueFromFileField(SOURCE_DIR + "/" + pid + STATUS_FILE, THREADS_FIELD);
+	if (threadsStr == UNKNOWN)
+	{
+		return 0;
+	}
+
+	try
+	{
+		return std::stoi(threadsStr);
+	}
+	catch (...)
+	{
+		return 0;
+	}
 }
 
 std::vector<Process> GetProcesses()
@@ -254,6 +301,8 @@ std::vector<Process> GetProcesses()
 		process.user = GetProcessUserName(pid);
 		process.sharedMemoryKB = GetSharedMemory(pid);
 		process.privateMemoryKB = GetPrivateMemory(pid);
+		process.cmd = GetProcessCmdLine(pid);
+		process.threads = GetProcessThreads(pid);
 
 		processes.push_back(process);
 	}
@@ -278,6 +327,8 @@ void PrintHeadline(const ColumnWidth& columnWidth)
 			  << std::setw(columnWidth.userWidth) << "USER"
 			  << std::setw(columnWidth.sharedWidth) << "SHARED"
 			  << std::setw(columnWidth.privateWidth) << "PRIVATE"
+			  << std::setw(columnWidth.threadsWidth) << "Threads"
+			  << std::setw(columnWidth.cmdWidth) << "CMD"
 			  << std::endl;
 }
 
@@ -291,6 +342,8 @@ void PrintProcesses(const std::vector<Process>& processes, const ColumnWidth& co
 				  << std::setw(columnWidth.userWidth) << process.user
 				  << std::setw(columnWidth.sharedWidth) << process.sharedMemoryKB
 				  << std::setw(columnWidth.privateWidth) << process.privateMemoryKB
+				  << std::setw(columnWidth.threadsWidth) << process.threads
+				  << std::setw(columnWidth.cmdWidth) << process.cmd
 				  << std::endl;
 	}
 	std::cout << std::endl;
