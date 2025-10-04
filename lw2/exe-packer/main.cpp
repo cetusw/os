@@ -5,7 +5,6 @@
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <input_executable> <output_sfx>" << std::endl;
-        std::cerr << "Or run as SFX to extract and execute." << std::endl;
         return 1;
     }
 
