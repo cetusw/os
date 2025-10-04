@@ -75,16 +75,18 @@ int ExePacker::RunAsPacker(const std::string &inputPath, const std::string &outp
     header.compressedSize = compressedData.size();
     memcpy(header.signature, SIGNATURE, 4);
 
-    std::ifstream self(inputPath, std::ios::binary);
     std::ofstream output(outputPath, std::ios::binary);
     std::vector<char> buffer(BUFFER_SIZE);
 
-    std::ifstream selfFile(SELF_EXE, std::ios::binary);
+    std::ifstream selfFile(m_selfPath, std::ios::binary);
+    if (!selfFile.is_open()) {
+        std::cerr << "Cannot open self executable: " << m_selfPath << std::endl;
+        return 1;
+    }
     while (selfFile.read(buffer.data(), static_cast<std::streamsize>(buffer.size())))
     {
         output.write(buffer.data(), selfFile.gcount());
     }
-    output.write(buffer.data(), selfFile.gcount());
 
     output.write(compressedData.data(), static_cast<std::streamsize>(compressedData.size()));
     output.write(reinterpret_cast<const char *>(&header), sizeof(header));

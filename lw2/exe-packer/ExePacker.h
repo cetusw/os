@@ -6,7 +6,6 @@
 #include <string>
 
 constexpr const char* SIGNATURE = "SFX!";
-constexpr const char* SELF_EXE = "/proc/self/exe";
 constexpr __mode_t EXECUTABLE_PERMISSIONS = 0755;
 constexpr int BUFFER_SIZE = 4096;
 
