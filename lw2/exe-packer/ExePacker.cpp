@@ -9,7 +9,7 @@
 #include <fcntl.h>
 #include <zlib.h>
 
-ExePacker::ExePacker(std::string selfPath) : selfPath(std::move(selfPath))
+ExePacker::ExePacker(std::string selfPath) : m_selfPath(std::move(selfPath))
 {
 }
 
@@ -22,7 +22,7 @@ bool ExePacker::HasPayload() const
 
 bool ExePacker::ReadPayload(std::vector<char> &payloadData, PayloadHeader &header) const
 {
-    std::ifstream file(selfPath, std::ios::binary | std::ios::ate);
+    std::ifstream file(m_selfPath, std::ios::binary | std::ios::ate);
     if (!file.is_open())
     {
         return false;

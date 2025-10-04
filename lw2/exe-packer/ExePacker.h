@@ -29,7 +29,7 @@ public:
     int RunAsUnpacker(int argc, char *argv[]) const;
 
 private:
-    std::string selfPath;
+    std::string m_selfPath;
 
     bool ReadPayload(std::vector<char> &payloadData, PayloadHeader &header) const;
 
