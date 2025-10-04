@@ -25,6 +25,7 @@ int main()
         std::cout << "Enter zombie PID to wait for (ps -el | grep Z): ";
         std::cin >> inputPid;
 
+        // TODO: для чего состояние z
         const pid_t result = waitpid(inputPid, &status, 0);
 
         if (result == -1)
