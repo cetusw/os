@@ -11,7 +11,7 @@
 #include <algorithm>
 
 constexpr std::string OUT_EXTENSION = ".out";
-constexpr size_t BUFFER_SIZE = 64 * 1024;
+constexpr size_t BUFFER_SIZE = 4024;
 constexpr size_t CHILDREN_LIMIT = 10;
 
 void PrintUsage()
