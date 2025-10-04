@@ -17,9 +17,6 @@ constexpr size_t CHILDREN_LIMIT = 10;
 void PrintUsage()
 {
     std::cerr << "Usage: flip-case <file1> [file2] ...\n";
-    std::cerr << "For each input file, creates a child process that writes a copy\n";
-    std::cerr << "with inverted case of ASCII letters to <input>.out\n";
-    std::cerr << "Note: If output file already exists, it will be overwritten.\n";
 }
 
 std::vector<std::string> ParseArguments(const int argc, char *argv[])
