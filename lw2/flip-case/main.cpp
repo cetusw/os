@@ -123,6 +123,7 @@ bool WaitProcess(std::vector<pid_t> &childrenPids)
         childrenPids.erase(it);
     }
 
+    // TODO: как работают макросы
     if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
     {
         return false;
@@ -145,6 +146,7 @@ bool LaunchChildProcess(const std::vector<std::string> &inputFiles, const size_t
     }
     if (pid == 0)
     {
+        // TODO: можно ли передать данные в дочерний процесс
         const int result = ProcessFile(inputFiles[fileIndex]);
         _Exit(result);
     }
