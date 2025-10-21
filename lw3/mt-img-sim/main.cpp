@@ -238,7 +238,7 @@ void FindSimilarImages(const Config& config)
 
 	for (const auto& filePath : allFiles)
 	{
-		boost::asio::post(pool, [&queryImage, &filePath, &allResults, &resultsMutex]() {
+		boost::asio::post(pool, [&queryImage, &filePath, &allResults, &resultsMutex] {
 			ProcessFile(queryImage, filePath, allResults, resultsMutex);
 		});
 	}
