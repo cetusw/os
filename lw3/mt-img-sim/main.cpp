@@ -103,7 +103,7 @@ Image ResizeImage(const std::vector<float>& linearData, const int width, const i
 	return resizedImage;
 }
 
-Image PreprocessImage(const std::filesystem::path& filePath)
+Image ProcessImage(const std::filesystem::path& filePath)
 {
 	int width, height, channels;
 	unsigned char* rawData = GetRawImageData(filePath, width, height, channels);
@@ -131,7 +131,7 @@ void ProcessFile(const Image& queryImage,
 {
 	try
 	{
-		const Image candidateImage = PreprocessImage(filePath);
+		const Image candidateImage = ProcessImage(filePath);
 		const double mseValue = CalculateMSE(queryImage, candidateImage);
 
 		std::lock_guard lock(resultsMutex);
@@ -234,7 +234,7 @@ Config ParseArguments(const int argc, char** argv)
 
 void FindSimilarImages(const Config& config)
 {
-	const Image queryImage = PreprocessImage(config.queryPath);
+	const Image queryImage = ProcessImage(config.queryPath);
 	const std::vector<std::filesystem::path> allFiles = CollectImagePaths(config.inputDir);
 
 	std::vector<Result> allResults;
