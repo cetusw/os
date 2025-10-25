@@ -207,11 +207,17 @@ void PrintResults(const std::vector<Result>& results)
 Config ParseArguments(const int argc, char** argv)
 {
 	cxxopts::Options options("mt-img-sim", "Многопоточный поиск похожих изображений");
-	options.add_options()("j", "Количество потоков", cxxopts::value<int>()->default_value("1"))("top", "Вывести K наиболее похожих", cxxopts::value<int>())("threshold", "Вывести с MSE <= T", cxxopts::value<double>())("query", "Путь к файлу-образцу", cxxopts::value<std::string>())("input_dir", "Каталог с изображениями", cxxopts::value<std::string>())("h", "Показать справку");
-	options.parse_positional({ "query", "input_dir" });
+	options.add_options()
+	("j", "Количество потоков", cxxopts::value<int>()->default_value("1"))
+	("top", "Вывести K наиболее похожих", cxxopts::value<int>())
+	("threshold", "Вывести с MSE <= T", cxxopts::value<double>())
+	("query", "Путь к файлу-образцу", cxxopts::value<std::string>())
+	("inputDir", "Каталог с изображениями", cxxopts::value<std::string>())
+	("h", "Показать справку");
+	options.parse_positional({ "query", "inputDir" });
 	const auto result = options.parse(argc, argv);
 
-	if (result.count("help") || !result.count("query") || !result.count("input_dir"))
+	if (result.count("help") || !result.count("query") || !result.count("inputDir"))
 	{
 		std::cout << options.help() << std::endl;
 		exit(1);
@@ -219,7 +225,7 @@ Config ParseArguments(const int argc, char** argv)
 
 	Config config;
 	config.queryPath = result["query"].as<std::string>();
-	config.inputDir = result["input_dir"].as<std::string>();
+	config.inputDir = result["inputDir"].as<std::string>();
 	config.numThreads = result["j"].as<int>();
 	config.top = result.count("top") ? result["top"].as<int>() : -1;
 	config.mseThreshold = result.count("threshold") ? result["threshold"].as<double>() : -1.0;
