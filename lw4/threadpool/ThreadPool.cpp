@@ -23,7 +23,7 @@ ThreadPool::ThreadPool(const unsigned numThreads)
 						return !m_tasks.empty();
 					});
 
-					if (stopToken.stop_requested() && m_tasks.empty())
+					if (stopToken.stop_requested() && m_tasks.empty()) // TODO что будет при return
 					{
 						return;
 					}
