@@ -199,7 +199,12 @@ Image ResizeImage(const std::vector<float>& linearData, const Size& currentSize,
 	return resizedImage;
 }
 
-void ProcessImage(const std::filesystem::path& inputPath, const std::filesystem::path& outputPath, const Size& newSize, std::atomic<int>& successCount, std::atomic<int>& errorCount)
+void ProcessImage(
+	const std::filesystem::path& inputPath,
+	const std::filesystem::path& outputPath,
+	const Size& newSize,
+	std::atomic<int>& successCount,
+	std::atomic<int>& errorCount)
 {
 	Size currentSize;
 	const auto srgbData = LoadImage(inputPath, currentSize.width, currentSize.height);
