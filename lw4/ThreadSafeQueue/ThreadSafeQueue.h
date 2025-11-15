@@ -70,7 +70,6 @@ public:
 
 		m_producer.notify_one();
 		return true;
-
 	}
 
 	std::unique_ptr<T> TryPop()

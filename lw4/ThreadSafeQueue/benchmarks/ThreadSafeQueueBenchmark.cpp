@@ -80,6 +80,7 @@ BENCHMARK_TEMPLATE(QueueBenchmark, ThreadSafeQueue<int>)
 	->Args({ 2, 2 })
 	->Args({ 4, 4 })
 	->Args({ 8, 8 })
+	->Args({ 12, 12 })
 	->UseRealTime();
 
 BENCHMARK_TEMPLATE(QueueBenchmark, boost::lockfree::queue<int>)
@@ -87,6 +88,7 @@ BENCHMARK_TEMPLATE(QueueBenchmark, boost::lockfree::queue<int>)
 	->Args({ 2, 2 })
 	->Args({ 4, 4 })
 	->Args({ 8, 8 })
+	->Args({ 12, 12 })
 	->UseRealTime();
 
 BENCHMARK_MAIN();
