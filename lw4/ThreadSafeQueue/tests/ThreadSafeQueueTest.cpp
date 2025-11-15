@@ -254,3 +254,5 @@ TEST(ThreadSafeQueueTest, ExceptionSafetyOnPush)
 	EXPECT_THROW(q.Push(out), std::runtime_error);
 	EXPECT_EQ(q.GetSize(), 0);
 }
+
+// TODO: стресс тесты

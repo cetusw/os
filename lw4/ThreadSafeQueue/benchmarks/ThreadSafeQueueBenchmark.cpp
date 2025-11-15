@@ -53,7 +53,7 @@ static void QueueBenchmark(benchmark::State& state)
 		{
 			consumers.emplace_back([&]() {
 				int value;
-				while (consumedCount.load(std::memory_order_acquire) < totalItems)
+				while (consumedCount.load() < totalItems)
 				{
 					bool success = false;
 					if constexpr (std::is_same_v<T, boost::lockfree::queue<int>>)
@@ -67,13 +67,15 @@ static void QueueBenchmark(benchmark::State& state)
 
 					if (success)
 					{
-						consumedCount.fetch_add(1, std::memory_order_release);
+						consumedCount.fetch_add(1);
 					}
 				}
 			});
 		}
 	}
 }
+
+// TODO: сделать так, чтобы потребители и консюмеры работали одновременно
 
 BENCHMARK_TEMPLATE(QueueBenchmark, ThreadSafeQueue<int>)
 	->Args({ 1, 1 })

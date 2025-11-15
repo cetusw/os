@@ -15,6 +15,9 @@ public:
 	{
 	}
 
+	// TODO: запретить копирование и присваивание
+
+	// TODO: при 0 capacity не проверять заполненность
 	void Push(const T& value)
 	{
 		std::unique_lock lock(m_queueMutex);
@@ -67,6 +70,7 @@ public:
 		}
 		out = std::move(m_queue.front());
 		m_queue.pop_front();
+		//TODO: unlock
 
 		m_producer.notify_one();
 		return true;
@@ -93,6 +97,7 @@ public:
 		});
 		T result = std::move(m_queue.front());
 		m_queue.pop_front();
+		// TODO: unlock
 
 		m_producer.notify_one();
 		return result;
@@ -129,8 +134,10 @@ public:
 
 		std::scoped_lock lock(m_queueMutex, other.m_queueMutex);
 
+		// TODO: можно ли сделать notify_one при разных количествах элементов
 		m_queue.swap(other.m_queue);
 
+		// TODO: можно ли вызвать не под lock
 		m_consumer.notify_all();
 		m_producer.notify_all();
 
