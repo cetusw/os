@@ -16,15 +16,22 @@ public:
 	}
 
 	// TODO: запретить копирование и присваивание
+	ThreadSafeQueue(const ThreadSafeQueue&) = delete;
+	ThreadSafeQueue& operator=(const ThreadSafeQueue&) = delete;
 
 	// TODO: при 0 capacity не проверять заполненность
 	void Push(const T& value)
 	{
 		std::unique_lock lock(m_queueMutex);
-		m_producer.wait(lock, [this] {
-			return !IsFull();
-		});
+		if (m_capacity > 0)
+		{
+			m_producer.wait(lock, [this] {
+				return !IsFull();
+			});
+		}
 		m_queue.push_back(value);
+		// TODO: unlock
+		lock.unlock();
 
 		m_consumer.notify_one();
 	}
@@ -32,45 +39,56 @@ public:
 	void Push(T&& value)
 	{
 		std::unique_lock lock(m_queueMutex);
-		m_producer.wait(lock, [this] {
-			return !IsFull();
-		});
+		if (m_capacity > 0)
+		{
+			m_producer.wait(lock, [this] {
+				return !IsFull();
+			});
+		}
 		m_queue.push_back(std::move(value));
+		lock.unlock();
 
 		m_consumer.notify_one();
 	}
 
 	[[nodiscard]] bool TryPush(const T& value)
 	{
-		std::lock_guard lock(m_queueMutex);
-		if (IsFull()) {
+		std::unique_lock lock(m_queueMutex);
+		if (IsFull())
+		{
 			return false;
 		}
 		m_queue.push_back(value);
+		lock.unlock();
+
 		m_consumer.notify_one();
 		return true;
 	}
 
 	[[nodiscard]] bool TryPush(T&& value)
 	{
-		std::lock_guard lock(m_queueMutex);
-		if (IsFull()) {
+		std::unique_lock lock(m_queueMutex);
+		if (IsFull())
+		{
 			return false;
 		}
 		m_queue.push_back(std::move(value));
+		lock.unlock();
+
 		m_consumer.notify_one();
 		return true;
 	}
 
 	bool TryPop(T& out)
 	{
-		std::lock_guard lock(m_queueMutex);
-		if (m_queue.empty()) {
+		std::unique_lock lock(m_queueMutex);
+		if (m_queue.empty())
+		{
 			return false;
 		}
 		out = std::move(m_queue.front());
 		m_queue.pop_front();
-		//TODO: unlock
+		lock.unlock();
 
 		m_producer.notify_one();
 		return true;
@@ -78,18 +96,21 @@ public:
 
 	std::unique_ptr<T> TryPop()
 	{
-		std::lock_guard lock(m_queueMutex);
-		if (m_queue.empty()) {
+		std::unique_lock lock(m_queueMutex);
+		if (m_queue.empty())
+		{
 			return nullptr;
 		}
 		auto ptr = std::make_unique<T>(std::move(m_queue.front()));
 		m_queue.pop_front();
+		lock.unlock();
 
 		m_producer.notify_one();
 		return ptr;
 	}
 
-	T WaitAndPop() requires std::is_nothrow_move_constructible_v<T>
+	T WaitAndPop()
+		requires std::is_nothrow_move_constructible_v<T>
 	{
 		std::unique_lock lock(m_queueMutex);
 		m_consumer.wait(lock, [this] {
@@ -97,7 +118,7 @@ public:
 		});
 		T result = std::move(m_queue.front());
 		m_queue.pop_front();
-		// TODO: unlock
+		lock.unlock();
 
 		m_producer.notify_one();
 		return result;
@@ -111,6 +132,7 @@ public:
 		});
 		out = std::move(m_queue.front());
 		m_queue.pop_front();
+		lock.unlock();
 
 		m_producer.notify_one();
 	}
@@ -121,23 +143,27 @@ public:
 		return m_queue.size();
 	}
 
-	[[nodiscard]] bool IsEmpty() const {
+	[[nodiscard]] bool IsEmpty() const
+	{
 		std::lock_guard lock(m_queueMutex);
 		return m_queue.empty();
 	}
 
 	void Swap(ThreadSafeQueue& other)
 	{
-		if (this == &other) {
+		if (this == &other)
+		{
 			return;
 		}
 
-		std::scoped_lock lock(m_queueMutex, other.m_queueMutex);
-
-		// TODO: можно ли сделать notify_one при разных количествах элементов
-		m_queue.swap(other.m_queue);
+		{
+			std::scoped_lock lock(m_queueMutex, other.m_queueMutex);
+			m_queue.swap(other.m_queue);
+		}
 
 		// TODO: можно ли вызвать не под lock
+		// TODO: можно ли сделать notify_one при разных количествах элементов
+
 		m_consumer.notify_all();
 		m_producer.notify_all();
 
@@ -145,18 +171,22 @@ public:
 		other.m_producer.notify_all();
 	}
 
-
 	void Swap(std::deque<T>& other)
 	{
-		std::lock_guard lock(m_queueMutex);
+		std::unique_lock lock(m_queueMutex);
+		if (m_capacity > 0 && other.size() > m_capacity) {
+			throw std::length_error("Swap exceeds queue capacity");
+		}
 		m_queue.swap(other);
+		lock.unlock();
 
 		m_consumer.notify_all();
 		m_producer.notify_all();
 	}
 
 private:
-	[[nodiscard]] bool IsFull() const {
+	[[nodiscard]] bool IsFull() const
+	{
 		return m_capacity > 0 && m_queue.size() == m_capacity;
 	}
 
