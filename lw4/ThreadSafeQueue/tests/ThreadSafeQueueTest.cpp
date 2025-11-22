@@ -1,6 +1,7 @@
 #include "../ThreadSafeQueue.h"
 #include "gtest/gtest.h"
 #include <algorithm>
+#include <latch>
 #include <thread>
 
 TEST(ThreadSafeQueueTest, InitiallyEmpty)
@@ -255,4 +256,63 @@ TEST(ThreadSafeQueueTest, ExceptionSafetyOnPush)
 	EXPECT_EQ(q.GetSize(), 0);
 }
 
-// TODO: стресс тесты
+TEST(ThreadSafeQueueTest, HeavyLoadTest)
+{
+	const int producersCount = static_cast<int>(std::thread::hardware_concurrency());
+	const int consumersCount = static_cast<int>(std::thread::hardware_concurrency());
+	constexpr int itemsPerProducer = 500000;
+	const int totalItems = producersCount * itemsPerProducer;
+
+	constexpr long long expectedSumPerProducer = (static_cast<long long>(itemsPerProducer) * (itemsPerProducer - 1)) / 2;
+	const long long totalExpectedSum = expectedSumPerProducer * producersCount;
+
+	ThreadSafeQueue<int> q;
+	std::atomic consumedCount = 0;
+	std::atomic<long long> actualSum = 0;
+
+	std::latch startLatch(producersCount + consumersCount + 1);
+
+	std::vector<std::jthread> threads;
+	threads.reserve(producersCount + consumersCount);
+
+	for (int i = 0; i < producersCount; ++i)
+	{
+		threads.emplace_back([&]() {
+			startLatch.arrive_and_wait();
+			for (int j = 0; j < itemsPerProducer; ++j)
+			{
+				q.Push(j);
+			}
+		});
+	}
+
+	for (int i = 0; i < consumersCount; ++i)
+	{
+		threads.emplace_back([&]() {
+			startLatch.arrive_and_wait();
+			long long localSum = 0;
+			int val;
+			while (consumedCount.load() < totalItems)
+			{
+				if (q.TryPop(val))
+				{
+					localSum += val;
+					consumedCount.fetch_add(1);
+				}
+				else
+				{
+					std::this_thread::yield();
+				}
+			}
+			actualSum.fetch_add(localSum);
+		});
+	}
+
+	startLatch.arrive_and_wait();
+
+	threads.clear();
+
+	EXPECT_EQ(consumedCount.load(), totalItems);
+	EXPECT_EQ(actualSum.load(), totalExpectedSum);
+	EXPECT_TRUE(q.IsEmpty());
+}

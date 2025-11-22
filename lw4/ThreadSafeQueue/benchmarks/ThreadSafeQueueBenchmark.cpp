@@ -2,6 +2,7 @@
 #include "benchmark/benchmark.h"
 #include <atomic>
 #include <boost/lockfree/queue.hpp>
+#include <latch>
 #include <numeric>
 #include <thread>
 #include <vector>
@@ -13,25 +14,26 @@ static void QueueBenchmark(benchmark::State& state)
 {
 	const int numProducers = static_cast<int>(state.range(0));
 	const int numConsumers = static_cast<int>(state.range(1));
+	const int totalItems = numProducers * ITEMS_PER_PRODUCER;
 
 	for (auto _ : state)
 	{
 		state.PauseTiming();
 
-		T queue(numProducers * ITEMS_PER_PRODUCER);
+		T queue(totalItems);
 		std::atomic consumedCount = 0;
-		const int totalItems = numProducers * ITEMS_PER_PRODUCER;
+
+		std::latch startLatch(numProducers + numConsumers + 1);
 
 		std::vector<std::jthread> producers;
 		producers.reserve(numProducers);
 		std::vector<std::jthread> consumers;
 		consumers.reserve(numConsumers);
 
-		state.ResumeTiming();
-
 		for (int i = 0; i < numProducers; ++i)
 		{
-			producers.emplace_back([&]() {
+			producers.emplace_back([&] {
+				startLatch.arrive_and_wait();
 				for (int j = 0; j < ITEMS_PER_PRODUCER; ++j)
 				{
 					int value = j;
@@ -52,6 +54,7 @@ static void QueueBenchmark(benchmark::State& state)
 		for (int i = 0; i < numConsumers; ++i)
 		{
 			consumers.emplace_back([&]() {
+				startLatch.arrive_and_wait();
 				int value;
 				while (consumedCount.load() < totalItems)
 				{
@@ -72,25 +75,29 @@ static void QueueBenchmark(benchmark::State& state)
 				}
 			});
 		}
+		state.ResumeTiming();
+		startLatch.arrive_and_wait();
 	}
 }
-
-// TODO: сделать так, чтобы потребители и консюмеры работали одновременно
 
 BENCHMARK_TEMPLATE(QueueBenchmark, ThreadSafeQueue<int>)
 	->Args({ 1, 1 })
 	->Args({ 2, 2 })
 	->Args({ 4, 4 })
-	->Args({ 8, 8 })
-	->Args({ 12, 12 })
+	->Args({ 1, 8 })
+	->Args({ 8, 1 })
+	->Args({ 128, 128 })
+	->Args({ 1024, 1024 })
 	->UseRealTime();
 
 BENCHMARK_TEMPLATE(QueueBenchmark, boost::lockfree::queue<int>)
 	->Args({ 1, 1 })
 	->Args({ 2, 2 })
 	->Args({ 4, 4 })
-	->Args({ 8, 8 })
-	->Args({ 12, 12 })
+	->Args({ 1, 8 })
+	->Args({ 8, 1 })
+	->Args({ 128, 128 })
+	->Args({ 1024, 1024 })
 	->UseRealTime();
 
 BENCHMARK_MAIN();

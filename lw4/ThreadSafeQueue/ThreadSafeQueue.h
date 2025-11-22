@@ -15,11 +15,9 @@ public:
 	{
 	}
 
-	// TODO: запретить копирование и присваивание
 	ThreadSafeQueue(const ThreadSafeQueue&) = delete;
 	ThreadSafeQueue& operator=(const ThreadSafeQueue&) = delete;
 
-	// TODO: при 0 capacity не проверять заполненность
 	void Push(const T& value)
 	{
 		std::unique_lock lock(m_queueMutex);
@@ -30,7 +28,6 @@ public:
 			});
 		}
 		m_queue.push_back(value);
-		// TODO: unlock
 		lock.unlock();
 
 		m_consumer.notify_one();
@@ -160,9 +157,6 @@ public:
 			std::scoped_lock lock(m_queueMutex, other.m_queueMutex);
 			m_queue.swap(other.m_queue);
 		}
-
-		// TODO: можно ли вызвать не под lock
-		// TODO: можно ли сделать notify_one при разных количествах элементов
 
 		m_consumer.notify_all();
 		m_producer.notify_all();
