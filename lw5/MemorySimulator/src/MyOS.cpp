@@ -1,7 +1,15 @@
-#include "OSHandler.h"
+#include "MyOS.h"
+#include "VirtualMemory.h"
 #include <iostream>
 
-bool OSHandler::OnPageFault(
+MyOS::MyOS(PhysicalMemory &physicalMemory)
+    : OSHandler(),
+      m_physicalMemory(physicalMemory),
+      m_nextFreeFrame(1)
+{
+}
+
+bool MyOS::OnPageFault(
     VirtualMemory &virtualMemory,
     const uint32_t virtualPageNumber,
     Access access,
@@ -22,6 +30,7 @@ bool OSHandler::OnPageFault(
     if (newFrameAddress >= m_physicalMemory.GetSize())
     {
         std::cout << "[OS HANDLER]: Out of physical memory! Aborting." << std::endl;
+        m_nextFreeFrame--;
         return false;
     }
 

@@ -52,9 +52,8 @@ enum class Privilege { User, Supervisor };
 class VirtualMemory
 {
 public:
-    explicit VirtualMemory(PhysicalMemory &physicalMem, OSHandler &handler);
+    explicit VirtualMemory(PhysicalMemory &physicalMemory, OSHandler &handler);
 
-    // Задать физический адрес таблицы страниц (должен быть кратен 4096 байтам).
     void SetPageTableAddress(uint32_t physicalAddress);
 
     [[nodiscard]] uint32_t GetPageTableAddress() const noexcept;
@@ -80,7 +79,7 @@ private:
                                                      Privilege privilege, bool execute) const;
 
     static bool CheckAccess(TranslationResult &result, const PTE &pte, Access access, Privilege privilege,
-                             bool execute);
+                            bool execute);
 
     PhysicalMemory &m_physicalMemory;
     OSHandler &m_handler;
@@ -94,12 +93,12 @@ private:
         if (!result.success)
         {
             const uint32_t vpn = address >> PTE::FRAME_SHIFT;
-            bool should_retry = m_handler.OnPageFault(
+            const bool shouldRetry = m_handler.OnPageFault(
                 *const_cast<VirtualMemory *>(this),
                 vpn,
                 Access::Read,
                 result.faultReason);
-            if (!should_retry)
+            if (!shouldRetry)
             {
                 throw std::runtime_error("Unhandled page fault on read");
             }
@@ -162,15 +161,15 @@ private:
             }
         }
 
-        PTE updated_pte = result.pte;
-        updated_pte.SetAccessed(true);
-        updated_pte.SetDirty(true);
+        PTE updatedPte = result.pte;
+        updatedPte.SetAccessed(true);
+        updatedPte.SetDirty(true);
 
-        if (updated_pte.raw != result.pte.raw)
+        if (updatedPte.raw != result.pte.raw)
         {
             const uint32_t vpn = address >> PTE::FRAME_SHIFT;
             const uint32_t pte_address = m_pageTableAddress + vpn * sizeof(PTE);
-            m_physicalMemory.Write32(pte_address, updated_pte.raw);
+            m_physicalMemory.Write32(pte_address, updatedPte.raw);
         }
 
         if constexpr (sizeof(T) == 1)

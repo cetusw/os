@@ -1,8 +1,23 @@
 #include "VirtualMemory.h"
 
+VirtualMemory::VirtualMemory(PhysicalMemory &physicalMemory, OSHandler &handler)
+    : m_physicalMemory(physicalMemory),
+      m_handler(handler)
+{
+}
+
+void VirtualMemory::SetPageTableAddress(const uint32_t physicalAddress)
+{
+    if ((physicalAddress & 0xFFF) != 0)
+    {
+        throw std::invalid_argument("Page table address must be aligned to 4096 bytes.");
+    }
+    m_pageTableAddress = physicalAddress;
+}
+
 uint32_t VirtualMemory::GetPageTableAddress() const noexcept
 {
-    // TODO
+    return m_pageTableAddress;
 }
 
 uint8_t VirtualMemory::Read8(const uint32_t address, const Privilege privilege, const bool execute) const
@@ -51,20 +66,22 @@ TranslationResult VirtualMemory::TranslateAddress(
     const Privilege privilege,
     const bool execute) const
 {
-    const uint32_t vpn = virtualAddress >> PTE::FRAME_SHIFT;
+    const uint32_t virtualPageNumber = virtualAddress >> PTE::FRAME_SHIFT;
     const uint32_t offset = virtualAddress & 0xFFF;
 
-    const uint32_t pteAddress = m_pageTableAddress + vpn * sizeof(PTE);
+    const uint32_t pteAddress = m_pageTableAddress + virtualPageNumber * sizeof(PTE);
 
-    PTE pte;
-    pte.raw = m_physicalMemory.Read32(pteAddress);
+    PTE pageTableEntry;
+    pageTableEntry.raw = m_physicalMemory.Read32(pteAddress);
 
     TranslationResult result;
-    result.pte = pte;
-    CheckAccess(result, pte, access, privilege, execute);
+    result.pte = pageTableEntry;
+    if (!CheckAccess(result, pageTableEntry, access, privilege, execute)) {
+        return result;
+    }
 
-    const uint32_t pfn = pte.GetFrame();
-    const uint32_t physicalAddress = pfn << PTE::FRAME_SHIFT | offset;
+    const uint32_t pageFrameNumber = pageTableEntry.GetFrame();
+    const uint32_t physicalAddress = pageFrameNumber << PTE::FRAME_SHIFT | offset;
 
     result.success = true;
     result.physicalAddress = physicalAddress;
@@ -100,7 +117,8 @@ bool VirtualMemory::CheckAccess(
         return false;
     }
 
-    if (execute && pte.IsNX()) {
+    if (execute && pte.IsNX())
+    {
         result.success = false;
         result.faultReason = PageFaultReason::ExecOnNX;
         return false;
