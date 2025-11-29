@@ -79,6 +79,9 @@ private:
     [[nodiscard]] TranslationResult TranslateAddress(uint32_t virtualAddress, Access access,
                                                      Privilege privilege, bool execute) const;
 
+    static bool CheckAccess(TranslationResult &result, const PTE &pte, Access access, Privilege privilege,
+                             bool execute);
+
     PhysicalMemory &m_physicalMemory;
     OSHandler &m_handler;
     uint32_t m_pageTableAddress = 0;
@@ -143,12 +146,12 @@ private:
         if (!result.success)
         {
             const uint32_t vpn = address >> PTE::FRAME_SHIFT;
-            bool should_retry = m_handler.OnPageFault(
+            bool shouldRetry = m_handler.OnPageFault(
                 *this,
                 vpn,
                 Access::Write,
                 result.faultReason);
-            if (!should_retry)
+            if (!shouldRetry)
             {
                 throw std::runtime_error("Unhandled page fault on write");
             }

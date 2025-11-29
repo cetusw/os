@@ -1,5 +1,10 @@
 #include "VirtualMemory.h"
 
+uint32_t VirtualMemory::GetPageTableAddress() const noexcept
+{
+    // TODO
+}
+
 uint8_t VirtualMemory::Read8(const uint32_t address, const Privilege privilege, const bool execute) const
 {
     return Read<uint8_t>(address, privilege, execute);
@@ -56,34 +61,7 @@ TranslationResult VirtualMemory::TranslateAddress(
 
     TranslationResult result;
     result.pte = pte;
-
-    if (!pte.IsPresent())
-    {
-        result.success = false;
-        result.faultReason = PageFaultReason::NotPresent;
-        return result;
-    }
-
-    if (privilege == Privilege::User && !pte.IsUser())
-    {
-        result.success = false;
-        result.faultReason = PageFaultReason::UserAccessToSupervisor;
-        return result;
-    }
-
-    if (access == Access::Write && !pte.IsWritable())
-    {
-        result.success = false;
-        result.faultReason = PageFaultReason::WriteToReadOnly;
-        return result;
-    }
-
-    if (execute && pte.IsNX())
-    {
-        result.success = false;
-        result.faultReason = PageFaultReason::ExecOnNX;
-        return result;
-    }
+    CheckAccess(result, pte, access, privilege, execute);
 
     const uint32_t pfn = pte.GetFrame();
     const uint32_t physicalAddress = pfn << PTE::FRAME_SHIFT | offset;
@@ -92,4 +70,41 @@ TranslationResult VirtualMemory::TranslateAddress(
     result.physicalAddress = physicalAddress;
 
     return result;
+}
+
+bool VirtualMemory::CheckAccess(
+    TranslationResult &result,
+    const PTE &pte,
+    const Access access,
+    const Privilege privilege,
+    const bool execute)
+{
+    if (!pte.IsPresent())
+    {
+        result.success = false;
+        result.faultReason = PageFaultReason::NotPresent;
+        return false;
+    }
+
+    if (privilege == Privilege::User && !pte.IsUser())
+    {
+        result.success = false;
+        result.faultReason = PageFaultReason::UserAccessToSupervisor;
+        return false;
+    }
+
+    if (access == Access::Write && !pte.IsWritable())
+    {
+        result.success = false;
+        result.faultReason = PageFaultReason::WriteToReadOnly;
+        return false;
+    }
+
+    if (execute && pte.IsNX()) {
+        result.success = false;
+        result.faultReason = PageFaultReason::ExecOnNX;
+        return false;
+    }
+
+    return true;
 }

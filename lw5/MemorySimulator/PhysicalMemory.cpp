@@ -25,7 +25,6 @@ uint32_t PhysicalMemory::Read32(const uint32_t address) const
     return Read<uint32_t>(address);
 }
 
-// уточнить 64 и 32
 uint64_t PhysicalMemory::Read64(const uint32_t address) const
 {
     return Read<uint64_t>(address);
