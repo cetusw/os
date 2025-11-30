@@ -114,8 +114,8 @@ private:
         if (updatedPte.raw != result.pte.raw)
         {
             const uint32_t vpn = address >> PTE::FRAME_SHIFT;
-            const uint32_t pte_address = m_pageTableAddress + vpn * sizeof(PTE);
-            m_physicalMemory.Write32(pte_address, updatedPte.raw);
+            const uint32_t pteAddress = m_pageTableAddress + vpn * sizeof(PTE);
+            m_physicalMemory.Write32(pteAddress, updatedPte.raw);
         }
 
         if constexpr (sizeof(T) == 1)
