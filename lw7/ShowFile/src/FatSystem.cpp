@@ -5,14 +5,16 @@
 #include <algorithm>
 #include <locale>
 
-constexpr uint8_t START_OF_DIR = 2;
-constexpr uint32_t END_OF_DIR = 0x0FFFFFF8;
+constexpr uint8_t START_OF_CLUSTER = 2;
+constexpr uint32_t END_OF_CLUSTER = 0x0FFFFFF8;
 constexpr uint8_t DIR_ENTRY_SIZE = 32;
 constexpr uint8_t DELETED_FILE = 0xE5;
 constexpr uint8_t LONG_FILE_NAME = 0x0F;
 constexpr unsigned short PADDING = 0xFFFF;
 constexpr uint8_t VOLUME_ID = 0x08;
 constexpr uint8_t DIR_FLAG = 0x10;
+constexpr int RESERVED_CLUSTERS = 2;
+constexpr int BYTES_PER_CLUSTER = 4;
 
 FatSystem::FatSystem(const std::string &imagePath)
     : m_reader(new ImageReader(imagePath))
@@ -48,14 +50,14 @@ void FatSystem::ParseBootSector()
 
 off_t FatSystem::ClusterToOffset(const uint32_t cluster) const
 {
-    return m_dataStart + static_cast<off_t>(cluster - 2) * m_bytesPerCluster;
+    return m_dataStart + static_cast<off_t>(cluster - RESERVED_CLUSTERS) * m_bytesPerCluster;
 }
 
 uint32_t FatSystem::GetNextCluster(const uint32_t cluster) const
 {
     uint32_t nextCluster = 0;
-    const off_t offset = m_fatStart + static_cast<off_t>(cluster) * 4;
-    m_reader->Read(&nextCluster, 4, offset);
+    const off_t offset = m_fatStart + static_cast<off_t>(cluster) * BYTES_PER_CLUSTER;
+    m_reader->Read(&nextCluster, BYTES_PER_CLUSTER, offset);
     return nextCluster & 0x0FFFFFFF;
 }
 
@@ -114,7 +116,7 @@ std::vector<FileInfo> FatSystem::ReadDirectory(const uint32_t startCluster) cons
     std::wstring lfnBuffer;
     uint32_t cluster = startCluster;
 
-    while (cluster >= START_OF_DIR && cluster < END_OF_DIR)
+    while (cluster >= START_OF_CLUSTER && cluster < END_OF_CLUSTER)
     {
         auto data = ReadCluster(cluster);
         for (size_t i = 0; i < data.size(); i += DIR_ENTRY_SIZE)
@@ -284,7 +286,7 @@ void FatSystem::PrintFile(const FileInfo &fileInfo) const
     uint32_t cluster = fileInfo.firstCluster;
     size_t remaining = fileInfo.size;
 
-    while (remaining > 0 && cluster >= 2 && cluster < END_OF_DIR)
+    while (remaining > 0 && cluster >= START_OF_CLUSTER && cluster < END_OF_CLUSTER)
     {
         auto data = ReadCluster(cluster);
         const size_t toWrite = std::min(remaining, data.size());
