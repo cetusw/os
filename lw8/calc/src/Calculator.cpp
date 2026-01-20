@@ -1,6 +1,4 @@
 #include "Calculator.h"
-
-#include "AppException.h"
 #include <sstream>
 
 constexpr char ADD_OPERATION = '+';
