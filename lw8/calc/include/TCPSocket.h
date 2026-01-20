@@ -13,7 +13,7 @@ public:
 
 	void SendLine(const std::string& line) const;
 
-	[[nodiscard]] std::string ReceiveLine() const;
+	std::string ReceiveLine();
 
 	void Connect(const std::string& address, int port);
 
@@ -25,8 +25,6 @@ public:
 
 private:
 	void CreateSocketHandler();
-
-protected:
 	SocketHandler m_handler;
 	std::string m_buffer;
 };

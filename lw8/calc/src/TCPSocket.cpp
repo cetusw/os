@@ -32,23 +32,28 @@ void TCPSocket::Connect(const std::string& address, const int port)
 	}
 }
 
-std::string TCPSocket::ReceiveLine() const
+std::string TCPSocket::ReceiveLine()
 {
-	std::string line;
-	char c;
 	while (true)
 	{
-		if (recv(m_handler.Get(), &c, 1, 0) <= 0)
+		const size_t endOfLinePos = m_buffer.find('\n');
+		if (endOfLinePos != std::string::npos)
+		{
+			std::string line = m_buffer.substr(0, endOfLinePos);
+			m_buffer.erase(0, endOfLinePos + 1);
+			return line;
+		}
+
+		char temp[4096];
+		const ssize_t bytesRead = recv(m_handler.Get(), temp, sizeof(temp), 0);
+
+		if (bytesRead <= 0)
 		{
 			throw std::runtime_error("Connection closed or error");
 		}
-		if (c == '\n')
-		{
-			break;
-		}
-		line += c;
+
+		m_buffer.append(temp, bytesRead);
 	}
-	return line;
 }
 
 void TCPSocket::SendLine(const std::string& line) const

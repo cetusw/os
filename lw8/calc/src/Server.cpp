@@ -42,7 +42,7 @@ void Server::Start(const int port)
 
 void Server::HandleClient(SocketHandler clientHandler)
 {
-	const TCPSocket clientSocket(std::move(clientHandler));
+	TCPSocket clientSocket(std::move(clientHandler));
 
 	try
 	{
