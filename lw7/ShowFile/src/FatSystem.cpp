@@ -41,7 +41,8 @@ void FatSystem::ParseBootSector()
 
 	const auto fatSectors = m_bootSector.numFATs * m_bootSector.sectorsPerFAT32;
 	const auto dataSectors = m_bootSector.totalSectors32 - (m_bootSector.reservedSectors + fatSectors);
-	if (dataSectors / m_bootSector.sectorsPerCluster < 65525)
+	const auto dataClusters = dataSectors / m_bootSector.sectorsPerCluster;
+	if (dataClusters < 65525)
 	{
 		throw std::runtime_error("Error: not a FAT32 image.");
 	}
