@@ -1,6 +1,13 @@
 #include "Server.h"
+#include "TCPSocket.h"
 #include "Calculator.h"
+#include "ThreadPool.h"
 #include <iostream>
+
+Server::Server(const int maxConcurrentClients)
+	: m_clients(maxConcurrentClients)
+{
+}
 
 void Server::Start(const int port)
 {
@@ -15,17 +22,16 @@ void Server::Start(const int port)
 		try
 		{
 			SocketHandler clientFileDescriptor = listener.Accept();
-			CleanupFinishedThreads();
+			// TODO: shared
+			auto clientFDPtr = std::make_shared<SocketHandler>(std::move(clientFileDescriptor));
+			++m_connectedClients;
 
-			auto isFinished = std::make_shared<std::atomic<bool>>(false);
-
-			std::jthread clientThread([clientFileDescriptor = std::move(clientFileDescriptor), isFinished]() mutable {
-				HandleClient(std::move(clientFileDescriptor), isFinished);
+			m_clients.Dispatch([this, clientFDPtr] {
+				HandleClient(std::move(*clientFDPtr));
+				--m_connectedClients;
 			});
 
-			m_sessions.push_back(std::make_unique<ClientSession>(std::move(clientThread), isFinished));
-
-			std::cout << "Active clients: " << m_sessions.size() << std::endl;
+			std::cout << "Active clients: " << m_connectedClients << std::endl;
 		}
 		catch (const std::exception& e)
 		{
@@ -34,14 +40,7 @@ void Server::Start(const int port)
 	}
 }
 
-void Server::CleanupFinishedThreads()
-{
-	std::erase_if(m_sessions, [](const std::unique_ptr<ClientSession>& session) {
-		return session->isFinished->load();
-	});
-}
-
-void Server::HandleClient(SocketHandler clientHandler, const std::shared_ptr<std::atomic<bool>>& isFinished)
+void Server::HandleClient(SocketHandler clientHandler)
 {
 	const TCPSocket clientSocket(std::move(clientHandler));
 
@@ -58,6 +57,4 @@ void Server::HandleClient(SocketHandler clientHandler, const std::shared_ptr<std
 	{
 		std::cout << "Client disconnected: " << e.what() << std::endl;
 	}
-
-	isFinished->store(true);
 }

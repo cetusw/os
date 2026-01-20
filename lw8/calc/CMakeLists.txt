@@ -12,6 +12,7 @@ add_executable(calc
         src/Calculator.cpp
         src/Server.cpp
         src/Client.cpp
+        src/ThreadPool.cpp
 )
 
 find_package(Threads REQUIRED)

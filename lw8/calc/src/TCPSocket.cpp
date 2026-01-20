@@ -5,6 +5,8 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+// TODO: длинные выражения
+
 TCPSocket::TCPSocket() = default;
 
 TCPSocket::TCPSocket(SocketHandler&& handle)
