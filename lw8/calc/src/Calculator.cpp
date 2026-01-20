@@ -16,7 +16,7 @@ std::string Calculator::ProcessCommand(const std::string& command)
 
 	try
 	{
-		const std::vector<long long> nums = ParseNumbers(numbersPart);
+		const std::vector<int> nums = ParseNumbers(numbersPart);
 		if (nums.empty())
 		{
 			return "ERROR: No numbers provided";
@@ -29,11 +29,11 @@ std::string Calculator::ProcessCommand(const std::string& command)
 	}
 }
 
-std::vector<long long> Calculator::ParseNumbers(const std::string& input)
+std::vector<int> Calculator::ParseNumbers(const std::string& input)
 {
-	std::vector<long long> nums;
+	std::vector<int> nums;
 	std::stringstream ss(input);
-	long long n;
+	int n;
 	while (ss >> n)
 	{
 		nums.push_back(n);
@@ -45,9 +45,9 @@ std::vector<long long> Calculator::ParseNumbers(const std::string& input)
 	return nums;
 }
 
-std::string Calculator::Calculate(const char operation, const std::vector<long long>& nums)
+std::string Calculator::Calculate(const char operation, const std::vector<int>& nums)
 {
-	long long result = nums[0];
+	int result = nums[0];
 	if (operation == ADD_OPERATION)
 	{
 		for (size_t i = 1; i < nums.size(); ++i)
