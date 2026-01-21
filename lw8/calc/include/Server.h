@@ -2,9 +2,9 @@
 #define CALC_SERVER_H
 
 #include "SocketHandler.h"
-#include "ThreadPool.h"
 #include <memory>
 #include <thread>
+#include <vector>
 
 class Server
 {
