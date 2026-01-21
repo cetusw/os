@@ -2,6 +2,7 @@
 #define CALC_SOCKETHANDLER_H
 
 #include <unistd.h>
+#include <utility>
 
 class SocketHandler
 {
@@ -36,8 +37,7 @@ public:
 		if (this != &other)
 		{
 			Close();
-			m_fileDescriptor = other.m_fileDescriptor;
-			other.m_fileDescriptor = -1;
+			m_fileDescriptor = std::exchange(other.m_fileDescriptor, -1);
 		}
 		return *this;
 	}
