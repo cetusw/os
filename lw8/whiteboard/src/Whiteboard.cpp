@@ -86,13 +86,12 @@ void Whiteboard::Update()
 		const sf::Vector2f currentPos = m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window));
 		if (currentPos != m_lastMousePos)
 		{
-			const DrawData data{
+			const DrawData data(
 				m_lastMousePos.x,
 				m_lastMousePos.y,
 				currentPos.x,
 				currentPos.y,
-				Color::ToUint(m_currentColor)
-			};
+				Color::ToUint(m_currentColor));
 
 			AddLineToCanvas(data);
 

@@ -12,6 +12,17 @@ struct DrawData
 	float endX;
 	float endY;
 	uint32_t color;
+
+	DrawData() = default;
+
+	DrawData(const float sx, const float sy, const float ex, const float ey, const uint32_t c)
+		: startX(sx)
+		, startY(sy)
+		, endX(ex)
+		, endY(ey)
+		, color(c)
+	{
+	}
 };
 
 #pragma pack(pop)
