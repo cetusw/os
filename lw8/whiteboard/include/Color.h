@@ -6,7 +6,7 @@
 class Color
 {
 public:
-	static sf::Color FromUint(const unsigned int color)
+	static sf::Color FromUint(const uint32_t color)
 	{
 		return {
 			static_cast<sf::Uint8>(color >> 24 & 0xFF),
@@ -16,12 +16,12 @@ public:
 		};
 	}
 
-	static unsigned int ToUint(const sf::Color color)
+	static uint32_t ToUint(const sf::Color color)
 	{
-		return (color.r << 24)
-			| (color.g << 16)
-			| (color.b << 8)
-			| color.a;
+		return (static_cast<uint32_t>(color.r) << 24)
+			| (static_cast<uint32_t>(color.g) << 16)
+			| (static_cast<uint32_t>(color.b) << 8)
+			| static_cast<uint32_t>(color.a);
 	}
 };
 

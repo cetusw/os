@@ -29,17 +29,33 @@ void Server::Accept()
 	m_acceptor.async_accept(*socket, [this, socket](const boost::system::error_code& error) {
 		if (!error)
 		{
+			auto historyData = std::make_shared<std::vector<DrawData>>();
 			{
 				std::lock_guard lock(m_mutex);
 				m_clients.push_back(socket);
-
-				for (const auto& data : m_history)
-				{
-					boost::asio::async_write(*socket, boost::asio::buffer(&data, sizeof(DrawData)),
-						[](const boost::system::error_code&, std::size_t) {});
-				}
+				*historyData = m_history;
 			}
-			HandleClient(socket);
+			if (historyData->empty())
+			{
+				HandleClient(socket);
+			}
+			else
+			{
+				// TODO: обработка ошибок
+				boost::asio::async_write(*socket, boost::asio::buffer(historyData->data(), historyData->size() * sizeof(DrawData)),
+					[this, socket, historyData](const boost::system::error_code& ec, std::size_t) {
+						if (!ec)
+						{
+							HandleClient(socket);
+						}
+						else
+						{
+							std::cerr << "Failed to send history" << std::endl;
+							std::lock_guard lock(m_mutex);
+							std::erase(m_clients, socket);
+						}
+					});
+			}
 		}
 		Accept();
 	});
@@ -73,9 +89,9 @@ void Server::SendData(const DrawData& data, const std::shared_ptr<tcp::socket>& 
 {
 	std::lock_guard lock(m_mutex);
 	if (skipSocket == nullptr)
-    {
-        m_history.push_back(data);
-    }
+	{
+		m_history.push_back(data);
+	}
 	for (auto& client : m_clients)
 	{
 		if (client != skipSocket)
