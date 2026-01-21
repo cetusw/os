@@ -1,13 +1,8 @@
 #include "Server.h"
-#include "TCPSocket.h"
 #include "Calculator.h"
+#include "TCPSocket.h"
 #include "ThreadPool.h"
 #include <iostream>
-
-Server::Server(const int maxConcurrentClients)
-	: m_clients(maxConcurrentClients)
-{
-}
 
 void Server::Start(const int port)
 {
@@ -23,11 +18,9 @@ void Server::Start(const int port)
 		{
 			SocketHandler clientFileDescriptor = listener.Accept();
 			// TODO: shared
-			auto clientFDPtr = std::make_shared<SocketHandler>(std::move(clientFileDescriptor));
 			++m_connectedClients;
-
-			m_clients.Dispatch([this, clientFDPtr] {
-				HandleClient(std::move(*clientFDPtr));
+			m_clientThreads.emplace_back([this, fd = std::move(clientFileDescriptor)]() mutable {
+				HandleClient(std::move(fd));
 				--m_connectedClients;
 			});
 

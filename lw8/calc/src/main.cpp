@@ -9,7 +9,7 @@ int main(const int argc, char* argv[])
 		if (argc == 2)
 		{
 			const int port = std::stoi(argv[1]);
-			Server server(10);
+			Server server;
 			server.Start(port);
 		}
 		else if (argc == 3)

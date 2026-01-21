@@ -9,12 +9,12 @@
 class Server
 {
 public:
-	explicit Server(int maxConcurrentClients);
 	void Start(int port);
 
 private:
 	static void HandleClient(SocketHandler clientHandler);
-	ThreadPool m_clients;
+
+	std::vector<std::jthread> m_clientThreads;
 	std::atomic<size_t> m_connectedClients{ 0 };
 };
 
