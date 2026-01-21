@@ -4,6 +4,7 @@
 #include <cstdint>
 // TODO размеры полей. static_assert.
 #pragma pack(push, 1)
+
 struct DrawData
 {
 	float startX;
@@ -12,6 +13,7 @@ struct DrawData
 	float endY;
 	uint32_t color;
 };
+
 #pragma pack(pop)
 
 static_assert(sizeof(DrawData) == 20, "DrawData size must be 20 bytes");
