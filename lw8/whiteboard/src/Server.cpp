@@ -72,6 +72,10 @@ void Server::HandleClient(const std::shared_ptr<tcp::socket>& socket)
 void Server::SendData(const DrawData& data, const std::shared_ptr<tcp::socket>& skipSocket)
 {
 	std::lock_guard lock(m_mutex);
+	if (skipSocket == nullptr)
+    {
+        m_history.push_back(data);
+    }
 	for (auto& client : m_clients)
 	{
 		if (client != skipSocket)
