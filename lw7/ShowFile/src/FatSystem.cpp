@@ -15,7 +15,7 @@ constexpr uint32_t END_OF_CLUSTER = 0x0FFFFFF8;
 constexpr uint8_t DIR_ENTRY_SIZE = 32;
 constexpr uint8_t DELETED_FILE = 0xE5;
 constexpr uint8_t LONG_FILE_NAME = 0x0F;
-constexpr unsigned short PADDING = 0xFFFF;
+constexpr uint16_t PADDING = 0xFFFF;
 constexpr uint8_t VOLUME_ID = 0x08;
 constexpr uint8_t DIR_FLAG = 0x10;
 constexpr int RESERVED_CLUSTERS = 2;
@@ -66,7 +66,6 @@ void FatSystem::ShowPath(std::string& path)
 
 	for (const auto& token : tokens)
 	{
-		// TODO один из токенов же может быть именем файла, зачем бросать исключение
 		if (!current.isDir)
 		{
 			throw std::runtime_error("Error: not a directory: " + current.name);
@@ -105,12 +104,12 @@ std::vector<std::string> FatSystem::SplitPath(std::string& path)
 
 FileInfo FatSystem::FindChild(const uint32_t startCluster, const std::string& name)
 {
-	const auto items = ReadDirectory(startCluster);
-	for (const auto& item : items)
+	const auto children = ReadDirectory(startCluster);
+	for (const auto& child : children)
 	{
-		if (strcasecmp(item.name.c_str(), name.c_str()) == 0)
+		if (strcasecmp(child.name.c_str(), name.c_str()) == 0)
 		{
-			return item;
+			return child;
 		}
 	}
 	throw std::runtime_error("Error: path not found: " + name);
@@ -171,14 +170,14 @@ void FatSystem::ParseDirEntry(const uint8_t* entry, std::vector<FileInfo>& resul
 void FatSystem::HandleLFNEntry(const FatLFNEntry* entry)
 {
 	std::wstring part;
-	for (const unsigned short code : entry->name1)
+	for (const uint16_t code : entry->name1)
 	{
 		if (code != PADDING && code != 0x0000)
 		{
 			part += code;
 		}
 	}
-	for (const unsigned short code : entry->name2)
+	for (const uint16_t code : entry->name2)
 	{
 		if (code != PADDING && code != 0x0000)
 		{
@@ -186,7 +185,7 @@ void FatSystem::HandleLFNEntry(const FatLFNEntry* entry)
 		}
 	}
 
-	for (const unsigned short code : entry->name3)
+	for (const uint16_t code : entry->name3)
 	{
 		if (code != PADDING && code != 0x0000)
 		{
