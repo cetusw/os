@@ -66,6 +66,7 @@ void FatSystem::ShowPath(std::string& path) const
 
 	for (const auto& token : tokens)
 	{
+		// TODO один из токенов же может быть именем файла, зачем бросать исключение
 		if (!current.isDir)
 		{
 			throw std::runtime_error("Error: not a directory: " + current.name);
@@ -112,7 +113,7 @@ FileInfo FatSystem::FindChild(const uint32_t startCluster, const std::string& na
 			return item;
 		}
 	}
-	throw std::runtime_error("Error: path not found (" + name + ").");
+	throw std::runtime_error("Error: path not found: " + name);
 }
 
 std::vector<FileInfo> FatSystem::ReadDirectory(const uint32_t startCluster) const
@@ -145,26 +146,26 @@ off_t FatSystem::ClusterToOffset(const uint32_t cluster) const
 	return m_dataStart + static_cast<off_t>(cluster - RESERVED_CLUSTERS) * m_bytesPerCluster;
 }
 
-void FatSystem::ParseDirEntry(const uint8_t* ptr, std::vector<FileInfo>& results, std::wstring& lfnBuffer)
+void FatSystem::ParseDirEntry(const uint8_t* entry, std::vector<FileInfo>& results, std::wstring& lfnBuffer)
 {
-	if (ptr[0] == 0x00)
+	if (entry[0] == 0x00)
 	{
 		return;
 	}
-	if (ptr[0] == DELETED_FILE)
+	if (entry[0] == DELETED_FILE)
 	{
 		lfnBuffer.clear();
 		return;
 	}
 
-	const uint8_t attr = ptr[11];
+	const uint8_t attr = entry[11];
 	if (attr == LONG_FILE_NAME)
 	{
-		HandleLFNEntry(reinterpret_cast<const FatLFNEntry*>(ptr), lfnBuffer);
+		HandleLFNEntry(reinterpret_cast<const FatLFNEntry*>(entry), lfnBuffer);
 	}
 	else
 	{
-		HandleShortEntry(reinterpret_cast<const FatDirEntry*>(ptr), results, lfnBuffer);
+		HandleShortEntry(reinterpret_cast<const FatDirEntry*>(entry), results, lfnBuffer);
 	}
 }
 

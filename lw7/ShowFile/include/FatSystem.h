@@ -33,7 +33,7 @@ private:
 
 	[[nodiscard]] std::vector<FileInfo> ReadDirectory(uint32_t startCluster) const;
 
-	static void ParseDirEntry(const uint8_t* ptr, std::vector<FileInfo>& results, std::wstring& lfnBuffer);
+	static void ParseDirEntry(const uint8_t* entry, std::vector<FileInfo>& results, std::wstring& lfnBuffer);
 
 	static void HandleLFNEntry(const FatLFNEntry* entry, std::wstring& lfnBuffer);
 
