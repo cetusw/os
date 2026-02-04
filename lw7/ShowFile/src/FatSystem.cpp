@@ -8,18 +8,19 @@
 // TODO записываем сначала файл больше 4кб - он разбивается на 2 части.
 // что будет, если дописать данные в первую часть, куда сдвинется/перезапишутся данные из второго кластера
 
-constexpr std::string CURRENT_DIR = ".";
 constexpr char DEFAULT_DIVIDER = '/';
 constexpr uint32_t START_OF_CLUSTER = 0x0000002;
 constexpr uint32_t END_OF_CLUSTER = 0x0FFFFFF8;
 constexpr uint8_t DIR_ENTRY_SIZE = 32;
 constexpr uint8_t DELETED_FILE = 0xE5;
 constexpr uint8_t LONG_FILE_NAME = 0x0F;
+constexpr uint8_t END_OF_LINE = 0x0000;
 constexpr uint16_t PADDING = 0xFFFF;
 constexpr uint8_t VOLUME_ID = 0x08;
 constexpr uint8_t DIR_FLAG = 0x10;
 constexpr int RESERVED_CLUSTERS = 2;
 constexpr uint32_t FAT_ENTRY_SIZE = 4;
+constexpr uint8_t LFN_LAST_ENTRY = 0x40;
 
 FatSystem::FatSystem(const std::string& imagePath)
 	: m_reader(new ImageReader(imagePath))
@@ -94,7 +95,7 @@ std::vector<std::string> FatSystem::SplitPath(std::string& path)
 
 	while (std::getline(stream, token, DEFAULT_DIVIDER))
 	{
-		if (!token.empty() && token != CURRENT_DIR)
+		if (!token.empty() && token != ".")
 		{
 			tokens.push_back(token);
 		}
@@ -119,6 +120,9 @@ std::vector<FileInfo> FatSystem::ReadDirectory(const uint32_t startCluster)
 {
 	std::vector<FileInfo> results;
 	uint32_t currentCluster = startCluster;
+
+	m_lfnBuffer.clear();
+	m_lfnValid = false;
 
 	while (currentCluster >= START_OF_CLUSTER && currentCluster < END_OF_CLUSTER)
 	{
@@ -153,6 +157,7 @@ void FatSystem::ParseDirEntry(const uint8_t* entry, std::vector<FileInfo>& resul
 	if (entry[0] == DELETED_FILE)
 	{
 		m_lfnBuffer.clear();
+		m_lfnValid = false;
 		return;
 	}
 
@@ -169,40 +174,56 @@ void FatSystem::ParseDirEntry(const uint8_t* entry, std::vector<FileInfo>& resul
 
 void FatSystem::HandleLFNEntry(const FatLFNEntry* entry)
 {
-	std::wstring part;
-	for (const uint16_t code : entry->name1)
+	if (entry->order & LFN_LAST_ENTRY)
 	{
-		if (code != PADDING && code != 0x0000)
-		{
-			part += code;
-		}
+		m_lfnBuffer.clear();
+		m_expectedLfnChecksum = entry->checkSum;
+		m_lfnValid = true;
 	}
-	for (const uint16_t code : entry->name2)
+	else
 	{
-		if (code != PADDING && code != 0x0000)
+		if (!m_lfnValid || entry->checkSum != m_expectedLfnChecksum)
 		{
-			part += code;
+			m_lfnValid = false;
+			m_lfnBuffer.clear();
+			return;
 		}
 	}
 
-	for (const uint16_t code : entry->name3)
-	{
-		if (code != PADDING && code != 0x0000)
-		{
-			part += code;
-		}
-	}
+	std::wstring part;
+	AppendLFNSegment(part, entry->name1, 5);
+	AppendLFNSegment(part, entry->name2, 6);
+	AppendLFNSegment(part, entry->name3, 2);
 
 	m_lfnBuffer.insert(0, part);
 }
 
+void FatSystem::AppendLFNSegment(std::wstring& part, const uint16_t* source, const size_t length)
+{
+	for (size_t i = 0; i < length; ++i)
+	{
+		const uint16_t code = source[i];
+		if (code == END_OF_LINE || code == PADDING)
+		{
+			break;
+		}
+		part += code;
+	}
+}
+
 void FatSystem::HandleRegularEntry(const FatDirEntry* entry, std::vector<FileInfo>& results)
 {
-	// TODO вспомнить
 	if (entry->attr & VOLUME_ID)
 	{
 		m_lfnBuffer.clear();
+		m_lfnValid = false;
 		return;
+	}
+
+	if (m_lfnValid && m_expectedLfnChecksum != CalculateChecksum(entry->name))
+	{
+		m_lfnValid = false;
+		m_lfnBuffer.clear();
 	}
 
 	FileInfo info;
@@ -221,6 +242,7 @@ void FatSystem::HandleRegularEntry(const FatDirEntry* entry, std::vector<FileInf
 
 	results.push_back(info);
 	m_lfnBuffer.clear();
+	m_lfnValid = false;
 }
 
 uint32_t FatSystem::GetNextCluster(const uint32_t cluster) const
@@ -256,13 +278,13 @@ std::string FatSystem::ProcessShortName(const uint8_t* name)
 	{
 		base += static_cast<char>(name[i]);
 	}
-	for (int i = 8; i < 11 && name[i] != ' '; ++i)
+	for (int i = 0; i < 3 && name[i] != ' '; ++i)
 	{
 		ext += static_cast<char>(name[i]);
 	}
 	if (!ext.empty())
 	{
-		return base + CURRENT_DIR + ext;
+		return base + "." + ext;
 	}
 	return base;
 }
@@ -274,7 +296,7 @@ void FatSystem::PrintDirectory(const FileInfo& dirInfo)
 	const auto children = ReadDirectory(dirInfo.startCluster);
 	for (const auto& child : children)
 	{
-		if (child.name == CURRENT_DIR || child.name == "..")
+		if (child.name == "." || child.name == "..")
 		{
 			continue;
 		}
@@ -305,4 +327,14 @@ void FatSystem::PrintFile(const FileInfo& fileInfo) const
 		remaining -= toWrite;
 		cluster = GetNextCluster(cluster);
 	}
+}
+
+uint8_t FatSystem::CalculateChecksum(const uint8_t* shortName)
+{
+	uint8_t sum = 0;
+	for (int i = 11; i > 0; i--)
+	{
+		sum = ((sum & 1) ? 0x80 : 0) + (sum >> 1) + *shortName++;
+	}
+	return sum;
 }
