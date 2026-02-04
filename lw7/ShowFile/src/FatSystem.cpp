@@ -19,7 +19,7 @@ constexpr unsigned short PADDING = 0xFFFF;
 constexpr uint8_t VOLUME_ID = 0x08;
 constexpr uint8_t DIR_FLAG = 0x10;
 constexpr int RESERVED_CLUSTERS = 2;
-constexpr int BYTES_PER_CLUSTER = 4;
+constexpr uint32_t FAT_ENTRY_SIZE = 4;
 
 FatSystem::FatSystem(const std::string& imagePath)
 	: m_reader(new ImageReader(imagePath))
@@ -54,7 +54,7 @@ void FatSystem::ParseBootSector()
 	m_dataStart = m_fatStart + fatSize;
 }
 
-void FatSystem::ShowPath(std::string& path) const
+void FatSystem::ShowPath(std::string& path)
 {
 	const auto tokens = SplitPath(path);
 	FileInfo current = {
@@ -103,10 +103,10 @@ std::vector<std::string> FatSystem::SplitPath(std::string& path)
 	return tokens;
 }
 
-FileInfo FatSystem::FindChild(const uint32_t startCluster, const std::string& name) const
+FileInfo FatSystem::FindChild(const uint32_t startCluster, const std::string& name)
 {
-	const auto contents = ReadDirectory(startCluster);
-	for (const auto& item : contents)
+	const auto items = ReadDirectory(startCluster);
+	for (const auto& item : items)
 	{
 		if (strcasecmp(item.name.c_str(), name.c_str()) == 0)
 		{
@@ -116,10 +116,9 @@ FileInfo FatSystem::FindChild(const uint32_t startCluster, const std::string& na
 	throw std::runtime_error("Error: path not found: " + name);
 }
 
-std::vector<FileInfo> FatSystem::ReadDirectory(const uint32_t startCluster) const
+std::vector<FileInfo> FatSystem::ReadDirectory(const uint32_t startCluster)
 {
 	std::vector<FileInfo> results;
-	std::wstring lfnBuffer;
 	uint32_t currentCluster = startCluster;
 
 	while (currentCluster >= START_OF_CLUSTER && currentCluster < END_OF_CLUSTER)
@@ -127,7 +126,7 @@ std::vector<FileInfo> FatSystem::ReadDirectory(const uint32_t startCluster) cons
 		auto clusterData = ReadCluster(currentCluster);
 		for (size_t i = 0; i < clusterData.size(); i += DIR_ENTRY_SIZE)
 		{
-			ParseDirEntry(clusterData.data() + i, results, lfnBuffer);
+			ParseDirEntry(clusterData.data() + i, results);
 		}
 		currentCluster = GetNextCluster(currentCluster);
 	}
@@ -146,7 +145,7 @@ off_t FatSystem::ClusterToOffset(const uint32_t cluster) const
 	return m_dataStart + static_cast<off_t>(cluster - RESERVED_CLUSTERS) * m_bytesPerCluster;
 }
 
-void FatSystem::ParseDirEntry(const uint8_t* entry, std::vector<FileInfo>& results, std::wstring& lfnBuffer)
+void FatSystem::ParseDirEntry(const uint8_t* entry, std::vector<FileInfo>& results)
 {
 	if (entry[0] == 0x00)
 	{
@@ -154,22 +153,22 @@ void FatSystem::ParseDirEntry(const uint8_t* entry, std::vector<FileInfo>& resul
 	}
 	if (entry[0] == DELETED_FILE)
 	{
-		lfnBuffer.clear();
+		m_lfnBuffer.clear();
 		return;
 	}
 
 	const uint8_t attr = entry[11];
 	if (attr == LONG_FILE_NAME)
 	{
-		HandleLFNEntry(reinterpret_cast<const FatLFNEntry*>(entry), lfnBuffer);
+		HandleLFNEntry(reinterpret_cast<const FatLFNEntry*>(entry));
 	}
 	else
 	{
-		HandleShortEntry(reinterpret_cast<const FatDirEntry*>(entry), results, lfnBuffer);
+		HandleRegularEntry(reinterpret_cast<const FatDirEntry*>(entry), results);
 	}
 }
 
-void FatSystem::HandleLFNEntry(const FatLFNEntry* entry, std::wstring& lfnBuffer)
+void FatSystem::HandleLFNEntry(const FatLFNEntry* entry)
 {
 	std::wstring part;
 	for (const unsigned short code : entry->name1)
@@ -195,17 +194,15 @@ void FatSystem::HandleLFNEntry(const FatLFNEntry* entry, std::wstring& lfnBuffer
 		}
 	}
 
-	lfnBuffer.insert(0, part);
+	m_lfnBuffer.insert(0, part);
 }
 
-void FatSystem::HandleShortEntry(
-	const FatDirEntry* entry,
-	std::vector<FileInfo>& results,
-	std::wstring& lfnBuffer)
+void FatSystem::HandleRegularEntry(const FatDirEntry* entry, std::vector<FileInfo>& results)
 {
+	// TODO вспомнить
 	if (entry->attr & VOLUME_ID)
 	{
-		lfnBuffer.clear();
+		m_lfnBuffer.clear();
 		return;
 	}
 
@@ -214,9 +211,9 @@ void FatSystem::HandleShortEntry(
 	info.size = entry->fileSize;
 	info.startCluster = entry->firstClusterHigh << 16 | entry->firstClusterLow;
 
-	if (!lfnBuffer.empty())
+	if (!m_lfnBuffer.empty())
 	{
-		info.name = ProcessLfn(lfnBuffer);
+		info.name = ProcessLfn();
 	}
 	else
 	{
@@ -224,21 +221,21 @@ void FatSystem::HandleShortEntry(
 	}
 
 	results.push_back(info);
-	lfnBuffer.clear();
+	m_lfnBuffer.clear();
 }
 
 uint32_t FatSystem::GetNextCluster(const uint32_t cluster) const
 {
 	uint32_t nextCluster = 0;
-	const off_t offset = m_fatStart + static_cast<off_t>(cluster) * BYTES_PER_CLUSTER;
-	m_reader->Read(&nextCluster, BYTES_PER_CLUSTER, offset);
+	const off_t offset = m_fatStart + static_cast<off_t>(cluster) * FAT_ENTRY_SIZE;
+	m_reader->Read(&nextCluster, FAT_ENTRY_SIZE, offset);
 	return nextCluster & 0x0FFFFFFF;
 }
 
-std::string FatSystem::ProcessLfn(const std::wstring& lfn)
+std::string FatSystem::ProcessLfn() const
 {
 	std::string result;
-	for (const wchar_t code : lfn)
+	for (const wchar_t code : m_lfnBuffer)
 	{
 		if (code > 127)
 		{
@@ -271,7 +268,7 @@ std::string FatSystem::ProcessShortName(const uint8_t* name)
 	return base;
 }
 
-void FatSystem::PrintDirectory(const FileInfo& dirInfo) const
+void FatSystem::PrintDirectory(const FileInfo& dirInfo)
 {
 	std::cout << "D .\nD ..\n";
 

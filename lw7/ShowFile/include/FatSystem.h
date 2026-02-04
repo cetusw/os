@@ -20,7 +20,7 @@ class FatSystem
 public:
 	explicit FatSystem(const std::string& imagePath);
 
-	void ShowPath(std::string& path) const;
+	void ShowPath(std::string& path);
 
 private:
 	void ParseBootSector();
@@ -31,21 +31,21 @@ private:
 
 	[[nodiscard]] std::vector<uint8_t> ReadCluster(uint32_t cluster) const;
 
-	[[nodiscard]] std::vector<FileInfo> ReadDirectory(uint32_t startCluster) const;
+	[[nodiscard]] std::vector<FileInfo> ReadDirectory(uint32_t startCluster);
 
-	static void ParseDirEntry(const uint8_t* entry, std::vector<FileInfo>& results, std::wstring& lfnBuffer);
+	void ParseDirEntry(const uint8_t* entry, std::vector<FileInfo>& results);
 
-	static void HandleLFNEntry(const FatLFNEntry* entry, std::wstring& lfnBuffer);
+	void HandleLFNEntry(const FatLFNEntry* entry);
 
-	static void HandleShortEntry(const FatDirEntry* entry, std::vector<FileInfo>& results, std::wstring& lfnBuffer);
+	void HandleRegularEntry(const FatDirEntry* entry, std::vector<FileInfo>& results);
 
-	[[nodiscard]] FileInfo FindChild(uint32_t startCluster, const std::string& name) const;
+	[[nodiscard]] FileInfo FindChild(uint32_t startCluster, const std::string& name);
 
-	void PrintDirectory(const FileInfo& dirInfo) const;
+	void PrintDirectory(const FileInfo& dirInfo);
 
 	void PrintFile(const FileInfo& fileInfo) const;
 
-	static std::string ProcessLfn(const std::wstring& lfn);
+	[[nodiscard]] std::string ProcessLfn() const;
 
 	static std::string ProcessShortName(const uint8_t* name);
 
@@ -56,6 +56,7 @@ private:
 	uint32_t m_fatStart;
 	uint32_t m_dataStart;
 	uint32_t m_bytesPerCluster;
+	std::wstring m_lfnBuffer;
 };
 
 #endif // FAT_SYSTEM_H

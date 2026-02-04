@@ -14,7 +14,7 @@ int main(const int argc, char* argv[])
 		const std::string imgPath = argv[1];
 		std::string targetPath = argv[2];
 
-		const FatSystem fs(imgPath);
+		FatSystem fs(imgPath);
 		fs.ShowPath(targetPath);
 	}
 	catch (const std::exception& e)
