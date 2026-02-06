@@ -377,6 +377,7 @@ std::vector<bool> FileSystemManager::GetBlockMap() const
 
 bool FileSystemManager::EnsureSufficientBlocks(FileEntry& entry, const uint64_t newSize)
 {
+	// TODO разделить метод на методы с единственной ответственностью
 	const auto neededBlocks = static_cast<uint32_t>((newSize + BLOCK_SIZE - 1) / BLOCK_SIZE);
 	if (neededBlocks <= entry.blocksCount)
 	{
