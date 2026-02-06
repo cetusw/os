@@ -3,6 +3,9 @@
 #include <cstring>
 #include <iostream>
 
+// TODO увеличивать размер дырки в два раза. сделать более эффективное распределение памяти
+// TODO два пользователя записывают данные - состояние гонки
+
 FileSystemManager::~FileSystemManager()
 {
 	CloseImage();
