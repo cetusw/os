@@ -6,7 +6,7 @@
 constexpr char SIGNATURE[] = "MYFS1";
 constexpr uint32_t BLOCK_SIZE = 4096;
 constexpr uint32_t MAX_FILENAME = 255;
-constexpr uint64_t MAX_FILE_SIZE = 2ULL * 1024 * 1024 * 1024;
+constexpr uint32_t MAX_FILE_SIZE = 2UL * 1024 * 1024 * 1024;
 
 #pragma pack(push, 1)
 struct Superblock
