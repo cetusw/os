@@ -3,7 +3,6 @@
 #include <cstring>
 #include <iostream>
 
-// TODO увеличивать размер дырки в два раза. сделать более эффективное распределение памяти
 // TODO два пользователя записывают данные - состояние гонки
 
 FileSystemManager::~FileSystemManager()
@@ -384,7 +383,16 @@ bool FileSystemManager::EnsureSufficientBlocks(FileEntry& entry, const uint64_t 
 		return true;
 	}
 
-	const int newStartBlock = FindConsecutiveBlocks(neededBlocks);
+	// TODO увеличивать размер дырки в два раза. сделать более эффективное распределение памяти
+	uint32_t targetBlocks = CalculateTargetBlockCount(entry, neededBlocks);
+
+	int newStartBlock = FindConsecutiveBlocks(targetBlocks);
+	if (newStartBlock == -1 && targetBlocks > neededBlocks)
+	{
+		targetBlocks = neededBlocks;
+		newStartBlock = FindConsecutiveBlocks(targetBlocks);
+	}
+
 	if (newStartBlock == -1)
 	{
 		return false;
@@ -396,7 +404,7 @@ bool FileSystemManager::EnsureSufficientBlocks(FileEntry& entry, const uint64_t 
 	}
 
 	entry.startBlock = static_cast<uint32_t>(newStartBlock);
-	entry.blocksCount = neededBlocks;
+	entry.blocksCount = targetBlocks;
 
 	return true;
 }
@@ -421,4 +429,22 @@ void FileSystemManager::MoveFileData(const FileEntry& entry, const uint64_t newS
 
 		moved += chunk;
 	}
+}
+uint32_t FileSystemManager::CalculateTargetBlockCount(const FileEntry& entry, const uint32_t neededBlocks)
+{
+	uint32_t targetBlocks;
+	if (entry.blocksCount == 0)
+	{
+		targetBlocks = 1;
+	}
+	else
+	{
+		targetBlocks = entry.blocksCount * 2;
+	}
+	if (targetBlocks < neededBlocks)
+	{
+		targetBlocks = neededBlocks;
+	}
+
+	return targetBlocks;
 }

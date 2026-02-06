@@ -46,6 +46,7 @@ private:
 	std::vector<bool> GetBlockMap() const;
 	bool EnsureSufficientBlocks(FileEntry& entry, uint64_t newSize);
 	void MoveFileData(const FileEntry& entry, uint64_t newStartBlock);
+	static uint32_t CalculateTargetBlockCount(const FileEntry& entry, uint32_t neededBlocks);
 
 	std::fstream m_imageStream;
 	Superblock m_superblock;
