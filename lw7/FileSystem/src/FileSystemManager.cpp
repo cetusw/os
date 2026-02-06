@@ -97,7 +97,7 @@ bool FileSystemManager::RemoveFile(const std::string& name)
 	return true;
 }
 
-bool FileSystemManager::TruncateFile(const std::string& name, uint64_t newSize)
+bool FileSystemManager::TruncateFile(const std::string& name, const uint64_t newSize)
 {
 	if (newSize > MAX_FILE_SIZE)
 	{
